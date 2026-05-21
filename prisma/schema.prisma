@@ -1,0 +1,443 @@
+// Abkon Laundromat — Prisma schema
+// Single source of truth for the data model.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  RECEPTION
+}
+
+enum ItemUnit {
+  PIECE
+  SQM
+  NEGOTIABLE
+}
+
+enum Service {
+  WASH
+  IRON
+  DRY_CLEAN
+}
+
+enum AddOnScope {
+  PER_ITEM
+  PER_TICKET
+}
+
+enum PricingMode {
+  FLAT
+  PERCENTAGE
+}
+
+enum TicketStatus {
+  RECEIVED
+  READY
+  IN_STORAGE
+  COLLECTED
+  CANCELLED
+}
+
+enum BookingStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+  CONVERTED
+  CANCELLED
+}
+
+enum TicketSource {
+  WALK_IN
+  BOT
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+}
+
+enum SmsMessageType {
+  INTAKE_SUMMARY
+  READY_NOTIFICATION
+  REMINDER
+  OTHER
+}
+
+enum SmsStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+}
+
+// ─── Core ─────────────────────────────────────────────────────────────────
+
+model Branch {
+  id                    String   @id @default(cuid())
+  name                  String
+  code                  String   @unique // 2-3 letters, used in ticket numbers
+  address               String?
+  serviceAreas          String[] @default([]) // bot routing
+  businessHoursOpen     String   @default("08:00") // HH:mm
+  businessHoursClose    String   @default("20:00") // HH:mm
+  businessDays          Int[]    @default([1, 2, 3, 4, 5, 6]) // 0=Sun, 6=Sat
+  homeDeliveryFee       Int      @default(1000) // ₦, snapshot value
+  urgentSurchargeAmount Int      @default(500) // ₦ or % depending on mode
+  urgentSurchargeMode   PricingMode @default(FLAT)
+  abandonedFlagDays     Int      @default(7)
+  moveToStorageDays     Int      @default(14)
+  maxDiscountPercent    Int      @default(10) // reception cap (%)
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  users             User[]
+  customers         Customer[]
+  itemTypes         ItemType[]
+  addOns            AddOn[]
+  bookings          Booking[]
+  tickets           Ticket[]
+  auditLogs         AuditLog[]
+  cashReconciliations CashReconciliation[]
+
+  @@index([active])
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  phone         String?
+  role          Role
+  branchId      String? // null for admin (sees all)
+  passwordHash  String
+  mfaEnabled    Boolean  @default(false)
+  mfaSecret     String? // TOTP secret, encrypted at rest in future
+  lastLoginAt   DateTime?
+  failedLoginAttempts Int @default(0)
+  lockedUntil   DateTime?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  branch    Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  sessions  Session[]
+  auditLogs AuditLog[] @relation("AuditActor")
+  ticketsCreated Ticket[] @relation("TicketCreatedBy")
+  paymentsTaken  Ticket[] @relation("TicketPaidTo")
+  discountsApplied Ticket[] @relation("TicketDiscountBy")
+  cashReconciliations CashReconciliation[]
+  bookingsVerified Booking[] @relation("BookingVerifiedBy")
+
+  @@index([branchId])
+  @@index([role])
+  @@index([active])
+}
+
+model Session {
+  id            String   @id @default(cuid())
+  userId        String
+  sessionToken  String   @unique
+  expires       DateTime
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expires])
+}
+
+model Customer {
+  id              String   @id @default(cuid())
+  branchId        String
+  name            String
+  phone           String
+  whatsappNumber  String?
+  defaultAddress  String?
+  notes           String?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  tickets  Ticket[]
+  bookings Booking[]
+
+  @@unique([branchId, phone])
+  @@index([branchId, name])
+  @@index([branchId, phone])
+}
+
+model ItemType {
+  id            String   @id @default(cuid())
+  branchId      String
+  name          String
+  unit          ItemUnit @default(PIECE)
+  washPrice     Int? // ₦, null = service not offered for this item
+  ironPrice     Int?
+  dryCleanPrice Int?
+  displayOrder  Int      @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  updatedById   String?
+
+  branch    Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  lineItems TicketLineItem[]
+
+  @@unique([branchId, name])
+  @@index([branchId, active])
+}
+
+model AddOn {
+  id                  String      @id @default(cuid())
+  branchId            String
+  name                String
+  scope               AddOnScope
+  pricingMode         PricingMode @default(FLAT)
+  amount              Int // ₦ (flat) or % (percentage)
+  appliesToServices   Service[]   @default([]) // empty = all
+  active              Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  updatedById         String?
+
+  branch       Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  lineItemAddOns TicketLineItemAddOn[]
+  ticketAddOns TicketAddOn[]
+
+  @@unique([branchId, name])
+  @@index([branchId, scope, active])
+}
+
+// ─── Ticketing ────────────────────────────────────────────────────────────
+
+model Booking {
+  id                     String        @id @default(cuid())
+  tempId                 String        @unique // e.g. "PEND-4821"
+  branchId               String
+  customerId             String? // null until customer record created
+  customerName           String
+  customerPhone          String
+  customerAddress        String
+  requestedItemsSnapshot Json // bot's quoted items + add-ons
+  estimatedTotal         Int // ₦
+  requestedPickupSlot    DateTime?
+  status                 BookingStatus @default(PENDING_VERIFICATION)
+  verifiedById           String?
+  verificationNotes      String?
+  rejectionReason        String?
+  ticketId               String?       @unique
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  branch     Branch    @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  verifiedBy User?     @relation("BookingVerifiedBy", fields: [verifiedById], references: [id])
+  ticket     Ticket?   @relation(fields: [ticketId], references: [id])
+
+  @@index([branchId, status])
+  @@index([status, createdAt])
+}
+
+model Ticket {
+  id                      String         @id @default(cuid())
+  ticketNumber            String         @unique // e.g. "AB-LG-482917-KON"
+  ticketBucket            String // YYYY-WW for collision check
+  ticketRandom            Int // the 6-digit random part
+  branchId                String
+  customerId              String
+  createdById             String
+  source                  TicketSource   @default(WALK_IN)
+  bookingId               String?        @unique
+  status                  TicketStatus   @default(RECEIVED)
+  receivedAt              DateTime       @default(now())
+  readyAt                 DateTime?
+  inStorageAt             DateTime?
+  collectedAt             DateTime?
+  cancelledAt             DateTime?
+  cancellationReason      String?
+  pickupDatePromised      DateTime
+  isUrgent                Boolean        @default(false)
+  lineItemsSubtotal       Int            @default(0)
+  perTicketAddonsTotal    Int            @default(0)
+  discountPercent         Int            @default(0)
+  discountAmount          Int            @default(0)
+  discountReason          String?
+  discountAppliedById     String?
+  grandTotal              Int            @default(0)
+  paymentStatus           PaymentStatus  @default(UNPAID)
+  paidAt                  DateTime?
+  paidToId                String?
+  abandonedFlaggedAt      DateTime?
+  reminderSmsSentAt       DateTime?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  branch         Branch            @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  customer       Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy      User              @relation("TicketCreatedBy", fields: [createdById], references: [id])
+  paidTo         User?             @relation("TicketPaidTo", fields: [paidToId], references: [id])
+  discountAppliedBy User?          @relation("TicketDiscountBy", fields: [discountAppliedById], references: [id])
+  lineItems      TicketLineItem[]
+  ticketAddOns   TicketAddOn[]
+  smsLogs        SmsLog[]
+  booking        Booking?
+
+  @@unique([branchId, ticketBucket, ticketRandom])
+  @@index([branchId, status])
+  @@index([branchId, paymentStatus])
+  @@index([status, readyAt])
+  @@index([ticketNumber])
+}
+
+model TicketLineItem {
+  id                    String   @id @default(cuid())
+  ticketId              String
+  itemTypeId            String?
+  itemTypeNameSnapshot  String
+  service               Service
+  quantity              Int // pieces (when unit=PIECE) or sqm (when unit=SQM)
+  unit                  ItemUnit
+  unitPriceSnapshot     Int // ₦
+  isNegotiable          Boolean  @default(false)
+  lineSubtotal          Int
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  ticket   Ticket                @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  itemType ItemType?             @relation(fields: [itemTypeId], references: [id], onDelete: SetNull)
+  addOns   TicketLineItemAddOn[]
+
+  @@index([ticketId])
+}
+
+model TicketLineItemAddOn {
+  id                     String   @id @default(cuid())
+  ticketLineItemId       String
+  addOnId                String?
+  addOnNameSnapshot      String
+  addOnAmountSnapshot    Int // computed ₦ value
+  createdAt              DateTime @default(now())
+
+  ticketLineItem TicketLineItem @relation(fields: [ticketLineItemId], references: [id], onDelete: Cascade)
+  addOn          AddOn?         @relation(fields: [addOnId], references: [id], onDelete: SetNull)
+
+  @@index([ticketLineItemId])
+}
+
+model TicketAddOn {
+  id                       String      @id @default(cuid())
+  ticketId                 String
+  addOnId                  String?
+  addOnNameSnapshot        String
+  addOnPricingModeSnapshot PricingMode
+  addOnAmountSnapshot      Int // raw config value (₦ or %)
+  computedAmount           Int // computed ₦ applied to the ticket
+  createdAt                DateTime    @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  addOn  AddOn? @relation(fields: [addOnId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+}
+
+// ─── Notifications & WhatsApp ─────────────────────────────────────────────
+
+model SmsLog {
+  id                String         @id @default(cuid())
+  ticketId          String?
+  customerPhone     String
+  messageType       SmsMessageType
+  content           String
+  provider          String         @default("termii")
+  providerMessageId String?
+  status            SmsStatus      @default(QUEUED)
+  error             String?
+  sentAt            DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@index([customerPhone])
+  @@index([status])
+}
+
+model WhatsAppMessage {
+  id            String   @id @default(cuid())
+  direction     String // "in" | "out"
+  phone         String
+  content       String
+  templateUsed  String?
+  status        String   @default("queued")
+  createdAt     DateTime @default(now())
+
+  @@index([phone, createdAt])
+}
+
+// ─── Ops ──────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actorRole   Role?
+  branchId    String?
+  action      String // e.g. "price_changed", "discount_applied"
+  entityType  String // e.g. "item_type", "ticket"
+  entityId    String?
+  beforeState Json?
+  afterState  Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  actor  User?   @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([branchId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+}
+
+model CashReconciliation {
+  id             String   @id @default(cuid())
+  branchId       String
+  date           DateTime @db.Date
+  expectedCash   Int
+  countedCash    Int
+  discrepancy    Int
+  reconciledById String
+  notes          String?
+  reconciledAt   DateTime @default(now())
+
+  branch       Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  reconciledBy User   @relation(fields: [reconciledById], references: [id])
+
+  @@unique([branchId, date])
+  @@index([branchId, date])
+}
+
+model LoginRateLimit {
+  id          String   @id @default(cuid())
+  identifier  String // email or IP
+  attempts    Int      @default(1)
+  windowStart DateTime @default(now())
+  expiresAt   DateTime
+
+  @@unique([identifier])
+  @@index([expiresAt])
+}
