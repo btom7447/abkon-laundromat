@@ -7,7 +7,10 @@ import { signIn } from "@/lib/auth";
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
   password: z.string().min(1, "Password is required"),
-  callbackUrl: z.string().optional(),
+  // FormData.get() returns null for missing fields — accept both null and the
+  // optional case so zod doesn't reject the whole submission on an absent
+  // hidden callbackUrl input.
+  callbackUrl: z.string().nullable().optional(),
 });
 
 export type LoginState = { error?: string; fieldErrors?: Record<string, string[]> };
