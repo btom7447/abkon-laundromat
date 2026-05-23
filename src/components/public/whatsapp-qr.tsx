@@ -6,12 +6,27 @@ interface WhatsAppQRProps {
   phoneNumber: string;
   message?: string;
   size?: number;
+  /** Compact mode: render only the QR card, no "Open WhatsApp" button. */
+  compact?: boolean;
 }
 
-export function WhatsAppQR({ phoneNumber, message, size = 180 }: WhatsAppQRProps) {
+export function WhatsAppQR({
+  phoneNumber,
+  message,
+  size = 180,
+  compact = false,
+}: WhatsAppQRProps) {
   const cleanedPhone = phoneNumber.replace(/[^\d]/g, "");
   const encodedMessage = message ? `?text=${encodeURIComponent(message)}` : "";
   const url = `https://wa.me/${cleanedPhone}${encodedMessage}`;
+
+  if (compact) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm">
+        <QRCodeSVG value={url} size={size} level="M" includeMargin={false} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-3">

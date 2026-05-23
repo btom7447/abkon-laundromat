@@ -155,6 +155,79 @@ export async function serviceSplit(scope: ReportScope): Promise<ServiceSplit[]> 
   }));
 }
 
+export type BranchRevenue = {
+  branchId: string;
+  name: string;
+  code: string;
+  revenue: number;
+  tickets: number;
+};
+
+/**
+ * Revenue and paid-ticket count per branch across the given range. Intended for
+ * the ADMIN-only branch comparison report — bypasses the single-branch scope
+ * since the whole point is to compare across branches.
+ */
+export async function revenueByBranch(range: DateRange): Promise<BranchRevenue[]> {
+  const [branches, grouped] = await Promise.all([
+    db.branch.findMany({
+      where: { active: true },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: "asc" },
+    }),
+    db.ticket.groupBy({
+      by: ["branchId"],
+      where: {
+        paymentStatus: "PAID",
+        paidAt: { gte: range.from, lte: range.to },
+      },
+      _sum: { grandTotal: true },
+      _count: true,
+    }),
+  ]);
+
+  const stats = new Map(
+    grouped.map((g) => [
+      g.branchId,
+      { revenue: g._sum.grandTotal ?? 0, tickets: g._count },
+    ])
+  );
+
+  return branches
+    .map((b) => ({
+      branchId: b.id,
+      name: b.name,
+      code: b.code,
+      revenue: stats.get(b.id)?.revenue ?? 0,
+      tickets: stats.get(b.id)?.tickets ?? 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+export type SourceSplit = { source: string; count: number; revenue: number };
+
+/**
+ * Walk-in vs Bot ticket split — count + revenue per channel.
+ */
+export async function sourceSplit(scope: ReportScope): Promise<SourceSplit[]> {
+  const grouped = await db.ticket.groupBy({
+    by: ["source"],
+    where: {
+      ...branchFilter(scope),
+      createdAt: { gte: scope.range.from, lte: scope.range.to },
+      status: { not: "CANCELLED" },
+    },
+    _count: true,
+    _sum: { grandTotal: true },
+  });
+
+  return grouped.map((g) => ({
+    source: g.source,
+    count: g._count,
+    revenue: g._sum.grandTotal ?? 0,
+  }));
+}
+
 export type AgingBucket = { label: string; days: string; count: number; amount: number };
 
 export async function unpaidAging(scope: ReportScope): Promise<AgingBucket[]> {
@@ -228,10 +301,14 @@ export type TodayCashSnapshot = {
 };
 
 export async function todayCashSnapshot(scope: ReportScope): Promise<TodayCashSnapshot> {
-  const startOfToday = new Date();
+  const now = new Date();
+  const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
   const endOfToday = new Date(startOfToday);
   endOfToday.setHours(23, 59, 59, 999);
+  // For the `@db.Date` lookup the action stores UTC-midnight, so we need the
+  // matching UTC-midnight Date for "today's local date" here as well.
+  const dateKey = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
 
   if (!scope.branchId) {
     return {
@@ -255,7 +332,7 @@ export async function todayCashSnapshot(scope: ReportScope): Promise<TodayCashSn
       _count: true,
     }),
     db.cashReconciliation.findUnique({
-      where: { branchId_date: { branchId: scope.branchId, date: startOfToday } },
+      where: { branchId_date: { branchId: scope.branchId, date: dateKey } },
     }),
   ]);
 

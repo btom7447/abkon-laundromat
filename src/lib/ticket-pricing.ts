@@ -1,7 +1,7 @@
 import type { AddOn, Branch, ItemType, Service } from "@prisma/client";
 
 export type LineInput = {
-  itemType: Pick<ItemType, "id" | "name" | "unit" | "washPrice" | "ironPrice" | "dryCleanPrice">;
+  itemType: Pick<ItemType, "id" | "name" | "unit" | "washPrice" | "ironPrice" | "washAndIronPrice" | "dryCleanPrice">;
   service: Service;
   quantity: number; // pieces or sqm
   negotiableUnitPrice?: number | null;
@@ -54,6 +54,15 @@ function pickServicePrice(item: LineInput["itemType"], service: Service): number
       return item.washPrice;
     case "IRON":
       return item.ironPrice;
+    case "WASH_AND_IRON": {
+      // If a combined price is set, use it. Otherwise derive from wash + iron
+      // (only if both individual services exist for the item).
+      if (item.washAndIronPrice != null) return item.washAndIronPrice;
+      if (item.washPrice != null && item.ironPrice != null) {
+        return item.washPrice + item.ironPrice;
+      }
+      return null;
+    }
     case "DRY_CLEAN":
       return item.dryCleanPrice;
   }

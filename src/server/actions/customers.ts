@@ -25,6 +25,8 @@ export type CustomerFormState = {
   error?: string;
   fieldErrors?: Record<string, string[]>;
   createdId?: string;
+  /** Set to true on a successful modal-mode submission so the client can dismiss. */
+  success?: boolean;
 };
 
 function ensureBranchAccess(actorRole: string, actorBranchId: string | null, branchId: string) {
@@ -83,6 +85,10 @@ export async function createCustomerAction(
   if (formData.get("__inline") === "1") {
     return { createdId: customer.id };
   }
+  // Modal mode — return success so the client can dismiss the modal.
+  if (formData.get("__modal") === "1") {
+    return { success: true, createdId: customer.id };
+  }
 
   redirect(`/admin/customers?branch=${data.branchId}`);
 }
@@ -138,6 +144,9 @@ export async function updateCustomerAction(
   });
 
   revalidatePath("/admin/customers");
+  if (formData.get("__modal") === "1") {
+    return { success: true };
+  }
   redirect(`/admin/customers?branch=${data.branchId}`);
 }
 
@@ -151,7 +160,11 @@ export async function quickCreateCustomer(input: {
   phone: string;
   whatsappNumber?: string;
   defaultAddress?: string;
-}): Promise<{ ok: true; customerId: string } | { ok: false; error: string }> {
+  notes?: string;
+}): Promise<
+  | { ok: true; customerId: string }
+  | { ok: false; error: string; existing?: { id: string; name: string; phone: string } }
+> {
   const actor = await requireSession();
   ensureBranchAccess(actor.role, actor.branchId, input.branchId);
 
@@ -160,8 +173,15 @@ export async function quickCreateCustomer(input: {
 
   const existing = await db.customer.findUnique({
     where: { branchId_phone: { branchId: input.branchId, phone } },
+    select: { id: true, name: true, phone: true },
   });
-  if (existing) return { ok: true, customerId: existing.id };
+  if (existing) {
+    return {
+      ok: false,
+      error: `This phone is already on file as "${existing.name}". Pick the existing customer instead.`,
+      existing,
+    };
+  }
 
   const created = await db.customer.create({
     data: {
@@ -170,6 +190,7 @@ export async function quickCreateCustomer(input: {
       phone,
       whatsappNumber: input.whatsappNumber?.trim() || null,
       defaultAddress: input.defaultAddress?.trim() || null,
+      notes: input.notes?.trim() || null,
       active: true,
     },
   });

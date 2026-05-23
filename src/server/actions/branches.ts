@@ -18,6 +18,7 @@ const branchSchema = z.object({
   serviceAreas: z.string().optional().or(z.literal("")), // comma-separated
   businessHoursOpen: z.string().regex(/^\d{2}:\d{2}$/),
   businessHoursClose: z.string().regex(/^\d{2}:\d{2}$/),
+  businessDays: z.string().optional().or(z.literal("")), // comma-separated day indices (0=Sun..6=Sat)
   homeDeliveryFee: z.coerce.number().int().min(0).max(1_000_000),
   urgentSurchargeAmount: z.coerce.number().int().min(0).max(1_000_000),
   urgentSurchargeMode: z.enum(["FLAT", "PERCENTAGE"]),
@@ -27,7 +28,13 @@ const branchSchema = z.object({
   active: z.preprocess((v) => v === "on" || v === true, z.boolean()).default(true),
 });
 
-export type BranchFormState = { error?: string; fieldErrors?: Record<string, string[]> };
+export type BranchFormState = {
+  error?: string;
+  fieldErrors?: Record<string, string[]>;
+  /** Set on modal-mode submits so the client can dismiss + refresh. */
+  success?: boolean;
+  createdId?: string;
+};
 
 function parseServiceAreas(raw: string | undefined | null): string[] {
   if (!raw) return [];
@@ -35,6 +42,15 @@ function parseServiceAreas(raw: string | undefined | null): string[] {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function parseBusinessDays(raw: string | undefined | null): number[] {
+  if (!raw) return [1, 2, 3, 4, 5, 6]; // default: Mon–Sat
+  const days = raw
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+  return Array.from(new Set(days)).sort((a, b) => a - b);
 }
 
 export async function createBranchAction(
@@ -59,6 +75,7 @@ export async function createBranchAction(
       serviceAreas: parseServiceAreas(data.serviceAreas),
       businessHoursOpen: data.businessHoursOpen,
       businessHoursClose: data.businessHoursClose,
+      businessDays: parseBusinessDays(data.businessDays),
       homeDeliveryFee: data.homeDeliveryFee,
       urgentSurchargeAmount: data.urgentSurchargeAmount,
       urgentSurchargeMode: data.urgentSurchargeMode,
@@ -80,6 +97,7 @@ export async function createBranchAction(
   });
 
   revalidatePath("/admin/branches");
+  if (formData.get("__modal") === "1") return { success: true, createdId: branch.id };
   redirect("/admin/branches");
 }
 
@@ -111,6 +129,7 @@ export async function updateBranchAction(
       serviceAreas: parseServiceAreas(data.serviceAreas),
       businessHoursOpen: data.businessHoursOpen,
       businessHoursClose: data.businessHoursClose,
+      businessDays: parseBusinessDays(data.businessDays),
       homeDeliveryFee: data.homeDeliveryFee,
       urgentSurchargeAmount: data.urgentSurchargeAmount,
       urgentSurchargeMode: data.urgentSurchargeMode,
@@ -133,5 +152,6 @@ export async function updateBranchAction(
   });
 
   revalidatePath("/admin/branches");
+  if (formData.get("__modal") === "1") return { success: true };
   redirect("/admin/branches");
 }

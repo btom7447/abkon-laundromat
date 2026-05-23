@@ -1,209 +1,283 @@
-import { db } from "@/lib/db";
-import { requireSession } from "@/lib/rbac";
+import {
+  TrendingUp,
+  Receipt,
+  Footprints,
+  Bot,
+} from "lucide-react";
+import { requireAdmin } from "@/lib/rbac";
 import { resolveBranchContext } from "@/lib/branch-context";
 import { resolveRange } from "@/lib/date-range";
 import {
   coreStats,
   revenueByDay,
+  revenueByBranch,
   topItemsByVolume,
   topItemsByRevenue,
   serviceSplit,
+  sourceSplit,
   unpaidAging,
   uncollectedAging,
 } from "@/server/queries/reports";
-import { formatNaira } from "@/lib/utils";
+import { formatDateOnly, formatNaira } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BranchPicker } from "@/components/admin/branch-picker";
-import { PresetTabs } from "@/components/admin/report-filters";
+import { ReportPeriodSelector } from "@/components/admin/report-period-selector";
+import { ReportDownloadButton } from "@/components/admin/report-download-button";
+import { AgingBuckets } from "@/components/admin/aging-buckets";
+import { KpiValue } from "@/components/admin/kpi-value";
 import {
   RevenueLineChart,
   TicketsBarChart,
   TopItemsBarChart,
   ServiceSplitDonut,
+  SourceSplitDonut,
+  BranchRevenueBarChart,
 } from "@/components/admin/charts";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-  searchParams: Promise<{ branch?: string; preset?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ preset?: string; from?: string; to?: string }>;
 }
 
 export default async function ReportsPage({ searchParams }: PageProps) {
-  const user = await requireSession();
-  const { branch: requested, preset, from, to } = await searchParams;
-  const ctx = await resolveBranchContext(user, requested ?? null);
+  const user = await requireAdmin();
+  const { preset, from, to } = await searchParams;
+  // Branch context comes from the header BranchSwitcher (cookie-driven), not a
+  // local picker — keeps a single source of truth for the active branch.
+  const ctx = await resolveBranchContext(user, null);
 
   if (!ctx) {
     return (
-      <Card>
-        <CardHeader><CardTitle>No branches set up</CardTitle></CardHeader>
-        <CardContent className="text-sm text-slate-600">
-          {user.role === "ADMIN" ? "Create a branch first." : "You are not assigned to a branch."}
-        </CardContent>
-      </Card>
+      <div className="p-4 md:p-7">
+        <Card>
+          <CardHeader><CardTitle>No branches set up</CardTitle></CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {user.role === "ADMIN" ? "Create a branch first." : "You are not assigned to a branch."}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   const range = resolveRange({ preset, from, to });
   const scope = { branchId: ctx.branchId, range };
 
-  const [stats, revenueSeries, byVolume, byRevenue, splits, unpaid, uncollected, allBranches] =
+  const [stats, revenueSeries, byVolume, byRevenue, splits, sources, unpaid, uncollected, branchRevenue] =
     await Promise.all([
       coreStats(scope),
       revenueByDay(scope),
       topItemsByVolume(scope, 8),
       topItemsByRevenue(scope, 8),
       serviceSplit(scope),
+      sourceSplit(scope),
       unpaidAging(scope),
       uncollectedAging(scope),
-      user.role === "ADMIN"
-        ? db.branch.findMany({ select: { id: true, name: true, code: true }, orderBy: { name: "asc" } })
-        : Promise.resolve([]),
+      // Branch comparison is ADMIN-only — fetch unconditionally for ADMIN so the
+      // section can decide whether to render based on the number of branches.
+      user.role === "ADMIN" ? revenueByBranch(range) : Promise.resolve([]),
     ]);
 
+  const showBranchComparison = user.role === "ADMIN" && branchRevenue.length >= 2;
+  const totalBranchRevenue = branchRevenue.reduce((s, b) => s + b.revenue, 0);
+
+  const totalSourced = stats.walkInVsBot.walkIn + stats.walkInVsBot.bot;
+  const walkInPct = totalSourced > 0 ? Math.round((stats.walkInVsBot.walkIn / totalSourced) * 100) : 0;
+  const botPct = totalSourced > 0 ? 100 - walkInPct : 0;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Reports</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {ctx.branchName} · {formatDate(range.from)} → {formatDate(range.to)}
+    <>
+      {/* Page head */}
+      <div className="flex flex-col gap-3 px-4 pt-4 md:flex-row md:items-start md:justify-between md:gap-6 md:px-7 md:pt-5">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="text-[22px] font-bold leading-[1.15] tracking-tight text-foreground md:text-[28px]">
+            Reports
+          </h1>
+          <p className="mt-1 max-w-170 text-[13px] leading-snug text-muted-foreground md:text-sm">
+            {ctx.branchName} · {formatDateOnly(range.from)} → {formatDateOnly(range.to)}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <PresetTabs current={range.preset} />
-          <BranchPicker
-            branches={user.role === "ADMIN" ? allBranches : ctx.branches}
-            current={ctx.branchId}
+        <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
+          <ReportPeriodSelector current={range.preset} />
+          <ReportDownloadButton />
+        </div>
+      </div>
+
+      {/* Page body */}
+      <div className="flex flex-1 flex-col gap-4 px-4 pb-6 pt-4 md:gap-5 md:px-7 md:pb-8 md:pt-5">
+        {/* KPI strip */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiBox
+            label="Revenue"
+            icon={<TrendingUp />}
+            value={stats.revenue}
+            currency
+            sub={`${stats.ticketsPaid} paid ticket${stats.ticketsPaid === 1 ? "" : "s"}`}
+            accent
+          />
+          <KpiBox
+            label="Tickets created"
+            icon={<Receipt />}
+            value={stats.ticketsCreated}
+            sub={
+              stats.ticketsCreated > 0
+                ? `${stats.urgentRatio}% urgent`
+                : "No tickets in this range"
+            }
+          />
+          <KpiBox
+            label="Walk-in tickets"
+            icon={<Footprints />}
+            value={stats.walkInVsBot.walkIn}
+            sub={totalSourced > 0 ? `${walkInPct}% of ${totalSourced} sourced` : "—"}
+          />
+          <KpiBox
+            label="Bot tickets"
+            icon={<Bot />}
+            value={stats.walkInVsBot.bot}
+            sub={totalSourced > 0 ? `${botPct}% of ${totalSourced} sourced` : "—"}
+          />
+        </div>
+
+        {/* Branch comparison — ADMIN only, when 2+ active branches */}
+        {showBranchComparison && (
+          <div className="flex flex-col gap-3 rounded-xl border border-default bg-card p-5 shadow-[0_1px_2px_0_rgb(15_23_42/0.04)]">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div className="flex flex-col gap-0.5">
+                <h3 className="text-[16px] font-semibold tracking-tight text-foreground">
+                  Branch comparison
+                </h3>
+                <p className="text-[12px] text-muted-foreground">
+                  Revenue across all active branches for this range — the highlighted bar is{" "}
+                  <span className="font-semibold text-foreground">{ctx.branchName}</span>, the
+                  branch driving the rest of this report.
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-[18px] font-bold tabular-nums tracking-tight text-foreground">
+                  {formatNaira(totalBranchRevenue)}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  combined across {branchRevenue.length} branches
+                </div>
+              </div>
+            </div>
+            <BranchRevenueBarChart data={branchRevenue} activeBranchId={ctx.branchId} />
+          </div>
+        )}
+
+        {/* Revenue + Volume — side-by-side on lg, stacked on mobile */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+          <SectionCard title="Revenue over time" sub="Paid tickets only · cancelled excluded">
+            <RevenueLineChart data={revenueSeries} />
+          </SectionCard>
+          <SectionCard title="Ticket volume" sub="Tickets created per day">
+            <TicketsBarChart data={revenueSeries.map((r) => ({ date: r.date, tickets: r.tickets }))} />
+          </SectionCard>
+        </div>
+
+        {/* Top items */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+          <SectionCard title="Top items by volume" sub="Counted across all paid + unpaid line items">
+            {byVolume.length === 0 ? <Empty /> : <TopItemsBarChart data={byVolume} unit="count" />}
+          </SectionCard>
+          <SectionCard title="Top items by revenue" sub="Naira contribution per item">
+            {byRevenue.length === 0 ? <Empty /> : <TopItemsBarChart data={byRevenue} unit="currency" />}
+          </SectionCard>
+        </div>
+
+        {/* Service + Source splits */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+          <SectionCard title="Service split" sub="Line items by service type">
+            {splits.length === 0 ? <Empty /> : <ServiceSplitDonut data={splits} />}
+          </SectionCard>
+          <SectionCard title="Channel split" sub="Walk-in vs WhatsApp bot — count + revenue on hover">
+            {sources.length === 0 ? <Empty /> : <SourceSplitDonut data={sources} />}
+          </SectionCard>
+        </div>
+
+        {/* Aging */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+          <AgingBuckets
+            title="Unpaid tickets"
+            sub="Tickets in storage or collected without payment"
+            data={unpaid}
+            tone="amber"
+          />
+          <AgingBuckets
+            title="Uncollected tickets"
+            sub="Time since the order was marked ready for pickup"
+            data={uncollected}
+            tone="red"
           />
         </div>
       </div>
+    </>
+  );
+}
 
-      {/* Core stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Revenue" value={formatNaira(stats.revenue)} sub={`${stats.ticketsPaid} paid tickets`} />
-        <StatCard label="Tickets created" value={String(stats.ticketsCreated)} sub={`${stats.urgentRatio}% urgent`} />
-        <StatCard label="Avg ticket value" value={formatNaira(stats.averageTicketValue)} sub="of paid tickets" />
-        <StatCard
-          label="Walk-in / Bot"
-          value={`${stats.walkInVsBot.walkIn} / ${stats.walkInVsBot.bot}`}
-          sub="ticket source split"
-        />
+// ── Primitives ────────────────────────────────────────────────────────
+
+function KpiBox({
+  label,
+  icon,
+  value,
+  currency,
+  sub,
+  accent,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  value: number;
+  currency?: boolean;
+  sub?: React.ReactNode;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative flex flex-col gap-1.5 rounded-xl border p-4 shadow-[0_1px_2px_0_rgb(15_23_42/0.04)]",
+        accent
+          ? "border-brand-200/70 bg-brand-50/40 dark:border-brand-900/40 dark:bg-brand-950/20"
+          : "border-default bg-card"
+      )}
+    >
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground [&_svg]:h-3.5 [&_svg]:w-3.5">
+        {icon}
+        {label}
       </div>
-
-      {/* Revenue chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Revenue over time</CardTitle>
-          <p className="text-sm text-slate-500">Paid tickets only. Cancelled tickets excluded.</p>
-        </CardHeader>
-        <CardContent>
-          <RevenueLineChart data={revenueSeries} />
-          <div className="mt-4">
-            <div className="text-xs font-medium text-slate-500">Ticket volume</div>
-            <TicketsBarChart data={revenueSeries.map((r) => ({ date: r.date, tickets: r.tickets }))} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle>Top items by volume</CardTitle></CardHeader>
-          <CardContent>
-            {byVolume.length === 0 ? (
-              <Empty />
-            ) : (
-              <TopItemsBarChart data={byVolume} unit="count" />
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Top items by revenue</CardTitle></CardHeader>
-          <CardContent>
-            {byRevenue.length === 0 ? (
-              <Empty />
-            ) : (
-              <TopItemsBarChart data={byRevenue} unit="currency" />
-            )}
-          </CardContent>
-        </Card>
+      <div className="text-[24px] font-bold leading-[1.05] tabular-nums tracking-tight text-foreground md:text-[26px]">
+        <KpiValue value={value} currency={currency} />
       </div>
-
-      <Card>
-        <CardHeader><CardTitle>Service split</CardTitle></CardHeader>
-        <CardContent>
-          {splits.length === 0 ? <Empty /> : <ServiceSplitDonut data={splits} />}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <AgingCard title="Unpaid tickets — aging" data={unpaid} />
-        <AgingCard title="Uncollected — aging since ready" data={uncollected} />
-      </div>
+      {sub && <div className="text-[11.5px] text-muted-foreground">{sub}</div>}
     </div>
   );
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
-        <div className="mt-1 text-2xl font-bold text-slate-900">{value}</div>
-        {sub && <div className="mt-1 text-xs text-slate-500">{sub}</div>}
-      </CardContent>
-    </Card>
-  );
-}
-
-function AgingCard({
+function SectionCard({
   title,
-  data,
+  sub,
+  children,
 }: {
   title: string;
-  data: Array<{ label: string; count: number; amount: number }>;
+  sub?: string;
+  children: React.ReactNode;
 }) {
-  const totalCount = data.reduce((s, d) => s + d.count, 0);
-  const totalAmount = data.reduce((s, d) => s + d.amount, 0);
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <p className="text-sm text-slate-500">
-          {totalCount} ticket{totalCount === 1 ? "" : "s"} · {formatNaira(totalAmount)} outstanding
-        </p>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Age</TableHead>
-              <TableHead>Tickets</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((b) => (
-              <TableRow key={b.label}>
-                <TableCell>{b.label}</TableCell>
-                <TableCell>{b.count}</TableCell>
-                <TableCell className="text-right">{formatNaira(b.amount)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <div className="flex h-full flex-col gap-3 rounded-xl border border-default bg-card p-5 shadow-[0_1px_2px_0_rgb(15_23_42/0.04)]">
+      <div className="flex flex-col gap-0.5">
+        <h3 className="text-[16px] font-semibold tracking-tight text-foreground">{title}</h3>
+        {sub && <p className="text-[12px] text-muted-foreground">{sub}</p>}
+      </div>
+      <div className="flex-1">{children}</div>
+    </div>
   );
 }
 
 function Empty() {
-  return <div className="py-12 text-center text-sm text-slate-400">No data for this range.</div>;
-}
-
-function formatDate(d: Date): string {
-  return new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(d);
+  return (
+    <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+      No data for this range.
+    </div>
+  );
 }

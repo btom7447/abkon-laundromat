@@ -38,7 +38,13 @@ const updateSchema = baseSchema.extend({
   password: z.string().optional().or(z.literal("")),
 });
 
-export type UserFormState = { error?: string; fieldErrors?: Record<string, string[]> };
+export type UserFormState = {
+  error?: string;
+  fieldErrors?: Record<string, string[]>;
+  /** Set on modal-mode submits so the client can dismiss + refresh. */
+  success?: boolean;
+  createdId?: string;
+};
 
 function normalizeBranchId(role: string, raw: string | undefined): string | null {
   if (role === "ADMIN") return null;
@@ -94,6 +100,7 @@ export async function createUserAction(
   });
 
   revalidatePath("/admin/users");
+  if (formData.get("__modal") === "1") return { success: true, createdId: user.id };
   redirect("/admin/users");
 }
 
@@ -161,5 +168,6 @@ export async function updateUserAction(
   });
 
   revalidatePath("/admin/users");
+  if (formData.get("__modal") === "1") return { success: true };
   redirect("/admin/users");
 }

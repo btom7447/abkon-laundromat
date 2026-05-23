@@ -8,7 +8,7 @@ export const Table = ({ className, ...props }: React.HTMLAttributes<HTMLTableEle
 );
 
 export const TableHeader = ({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-  <thead className={cn("border-b border-slate-200 bg-slate-50", className)} {...props} />
+  <thead className={cn("border-b border-default bg-surface-muted", className)} {...props} />
 );
 
 export const TableBody = ({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) => (
@@ -16,13 +16,19 @@ export const TableBody = ({ className, ...props }: React.HTMLAttributes<HTMLTabl
 );
 
 export const TableRow = ({ className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) => (
-  <tr className={cn("border-b border-slate-100 transition-colors hover:bg-slate-50", className)} {...props} />
+  <tr
+    className={cn(
+      "border-b border-default transition-colors hover:bg-surface-muted/70",
+      className
+    )}
+    {...props}
+  />
 );
 
 export const TableHead = ({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
   <th
     className={cn(
-      "h-11 px-4 text-left align-middle text-xs font-medium text-slate-500 uppercase tracking-wide",
+      "h-11 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase tracking-wide",
       className
     )}
     {...props}
@@ -30,5 +36,5 @@ export const TableHead = ({ className, ...props }: React.ThHTMLAttributes<HTMLTa
 );
 
 export const TableCell = ({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
-  <td className={cn("p-4 align-middle text-slate-900", className)} {...props} />
+  <td className={cn("p-4 align-middle text-foreground", className)} {...props} />
 );

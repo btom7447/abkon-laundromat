@@ -3,8 +3,8 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/rbac";
 import { resolveBranchContext } from "@/lib/branch-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BranchPicker } from "@/components/admin/branch-picker";
-import { TicketForm } from "./ticket-form";
+import { categoryForItem, illustrationForItem } from "@/lib/pos-categories";
+import { PosBoard } from "@/components/admin/pos/pos-board";
 
 export const dynamic = "force-dynamic";
 
@@ -34,44 +34,43 @@ export default async function NewTicketPage({ searchParams }: PageProps) {
 
   if (items.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>No items configured</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-slate-600">
-          This branch has no items yet. Ask an admin to add items in the catalog.
-        </CardContent>
-      </Card>
+      <div className="p-7">
+        <Card>
+          <CardHeader>
+            <CardTitle>No items configured</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            This branch has no items yet. Ask an admin to add items in the catalog.
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">New ticket</h1>
-          <p className="mt-1 text-sm text-slate-500">{branch.name} ({branch.code})</p>
-        </div>
-        {user.role === "ADMIN" && <BranchPicker branches={ctx.branches} current={ctx.branchId} />}
-      </div>
-
-      <TicketForm
-        branchId={branch.id}
-        branchCode={branch.code}
-        branchName={branch.name}
-        urgentSurchargeAmount={branch.urgentSurchargeAmount}
-        urgentSurchargeMode={branch.urgentSurchargeMode}
-        maxDiscountPercent={branch.maxDiscountPercent}
-        homeDeliveryFee={branch.homeDeliveryFee}
-        items={items.map((i) => ({
-          id: i.id,
-          name: i.name,
-          unit: i.unit,
-          washPrice: i.washPrice,
-          ironPrice: i.ironPrice,
-          dryCleanPrice: i.dryCleanPrice,
-        }))}
-        addOns={addOns.map((a) => ({
+    <PosBoard
+      branch={{
+        id: branch.id,
+        name: branch.name,
+        code: branch.code,
+        urgentSurchargeAmount: branch.urgentSurchargeAmount,
+        urgentSurchargeMode: branch.urgentSurchargeMode,
+        maxDiscountPercent: branch.maxDiscountPercent,
+      }}
+      items={items.map((i) => ({
+        id: i.id,
+        name: i.name,
+        unit: i.unit,
+        washPrice: i.washPrice,
+        ironPrice: i.ironPrice,
+        washAndIronPrice: i.washAndIronPrice,
+        dryCleanPrice: i.dryCleanPrice,
+        category: categoryForItem(i.name, i.unit),
+        illustration: illustrationForItem(i.name),
+      }))}
+      perItemAddOns={addOns
+        .filter((a) => a.scope === "PER_ITEM")
+        .map((a) => ({
           id: a.id,
           name: a.name,
           scope: a.scope,
@@ -79,8 +78,17 @@ export default async function NewTicketPage({ searchParams }: PageProps) {
           amount: a.amount,
           appliesToServices: a.appliesToServices,
         }))}
-        isAdmin={user.role === "ADMIN"}
-      />
-    </div>
+      perTicketAddOns={addOns
+        .filter((a) => a.scope === "PER_TICKET")
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          scope: a.scope,
+          pricingMode: a.pricingMode,
+          amount: a.amount,
+          appliesToServices: a.appliesToServices,
+        }))}
+      isAdmin={user.role === "ADMIN"}
+    />
   );
 }

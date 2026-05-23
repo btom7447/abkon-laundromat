@@ -9,11 +9,19 @@ import { loginAction, type LoginState } from "./actions";
 
 const initial: LoginState = {};
 
-export function LoginForm() {
+interface Props {
+  callbackUrl?: string;
+  initialError?: string;
+}
+
+export function LoginForm({ callbackUrl, initialError }: Props) {
   const [state, formAction, pending] = useActionState(loginAction, initial);
+  const errorMsg = state.error ?? initialError;
 
   return (
     <form action={formAction} className="space-y-4">
+      {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
+
       <div className="space-y-1.5">
         <Label htmlFor="email">Email</Label>
         <Input
@@ -26,7 +34,7 @@ export function LoginForm() {
           aria-describedby={state.fieldErrors?.email ? "email-error" : undefined}
         />
         {state.fieldErrors?.email && (
-          <p id="email-error" className="text-xs text-red-600">
+          <p id="email-error" className="text-xs text-red-600 dark:text-red-400">
             {state.fieldErrors.email[0]}
           </p>
         )}
@@ -44,15 +52,15 @@ export function LoginForm() {
           aria-describedby={state.fieldErrors?.password ? "password-error" : undefined}
         />
         {state.fieldErrors?.password && (
-          <p id="password-error" className="text-xs text-red-600">
+          <p id="password-error" className="text-xs text-red-600 dark:text-red-400">
             {state.fieldErrors.password[0]}
           </p>
         )}
       </div>
 
-      {state.error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {state.error}
+      {errorMsg && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+          {errorMsg}
         </div>
       )}
 

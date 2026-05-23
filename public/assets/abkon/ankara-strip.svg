@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 24" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <pattern id="ankara" x="0" y="0" width="48" height="24" patternUnits="userSpaceOnUse">
+      
+      <rect width="48" height="24" fill="#0EA5E9"></rect>
+      
+      <path d="M12 12 L18 4 L24 12 L18 20 Z" fill="#F0F9FF"></path>
+      <path d="M36 12 L42 4 L48 12 L42 20 Z" fill="#F0F9FF"></path>
+      <path d="M0 12 L6 4 L12 12 L6 20 Z" fill="#F0F9FF"></path>
+      
+      <path d="M16 12 L18 8 L20 12 L18 16 Z" fill="#21304A"></path>
+      <path d="M40 12 L42 8 L44 12 L42 16 Z" fill="#21304A"></path>
+      <path d="M4 12 L6 8 L8 12 L6 16 Z" fill="#21304A"></path>
+      
+      <circle cx="30" cy="12" r="2.5" fill="#21304A"></circle>
+      <circle cx="30" cy="4" r="1.2" fill="#F0F9FF"></circle>
+      <circle cx="30" cy="20" r="1.2" fill="#F0F9FF"></circle>
+      
+      <line x1="28" y1="6" x2="32" y2="2" stroke="#F0F9FF" stroke-width="1"></line>
+      <line x1="32" y1="6" x2="28" y2="2" stroke="#F0F9FF" stroke-width="1"></line>
+      <line x1="28" y1="18" x2="32" y2="22" stroke="#F0F9FF" stroke-width="1"></line>
+      <line x1="32" y1="18" x2="28" y2="22" stroke="#F0F9FF" stroke-width="1"></line>
+    </pattern>
+  </defs>
+  <rect width="240" height="24" fill="url(#ankara)"></rect>
+</svg>

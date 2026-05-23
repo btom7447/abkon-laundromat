@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession, assertCanAccessBranch } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
+import { localDateToUtcMidnight } from "@/lib/utils";
 
 const reconcileSchema = z.object({
   branchId: z.string().min(1),
@@ -30,16 +31,21 @@ export async function reconcileCashAction(
 
   assertCanAccessBranch(actor, data.branchId);
 
-  const date = new Date(data.date);
-  date.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
+  // `@db.Date` column stores the UTC-midnight date — keeps round-trip stable
+  // regardless of server timezone.
+  const date = localDateToUtcMidnight(data.date);
+
+  // For paidAt aggregation we want the *local* day boundaries (the staff member's
+  // wall-clock day), so build local-midnight start/end from the same YYYY-MM-DD.
+  const [yy, mm, dd] = data.date.split("-").map(Number);
+  const localStart = new Date(yy!, (mm ?? 1) - 1, dd!, 0, 0, 0, 0);
+  const localEnd = new Date(yy!, (mm ?? 1) - 1, dd!, 23, 59, 59, 999);
 
   const agg = await db.ticket.aggregate({
     where: {
       branchId: data.branchId,
       paymentStatus: "PAID",
-      paidAt: { gte: date, lte: endOfDay },
+      paidAt: { gte: localStart, lte: localEnd },
     },
     _sum: { grandTotal: true },
   });

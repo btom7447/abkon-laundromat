@@ -3,9 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  experimental: {
-    typedRoutes: true,
-  },
+  // typedRoutes intentionally off — pages use dynamic query-string hrefs that
+  // typedRoutes flags as false positives. Revisit when migrating to typed URL helpers.
+  typedRoutes: false,
   async headers() {
     return [
       {

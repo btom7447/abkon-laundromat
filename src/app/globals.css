@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
+  /* Brand: Sky (primary) */
   --color-brand-50: #f0f9ff;
   --color-brand-100: #e0f2fe;
   --color-brand-200: #bae6fd;
@@ -11,31 +14,98 @@
   --color-brand-700: #0369a1;
   --color-brand-800: #075985;
   --color-brand-900: #0c4a6e;
+  --color-brand-950: #082f49;
+
+  /* Brand: Navy (structure) */
+  --color-navy-50: #f4f6fb;
+  --color-navy-100: #e6ebf4;
+  --color-navy-200: #c5d0e3;
+  --color-navy-300: #9babc8;
+  --color-navy-400: #6b80a8;
+  --color-navy-500: #4d638e;
+  --color-navy-600: #3a4f74;
+  --color-navy-700: #303f5d;
+  --color-navy-800: #21304a;
+  --color-navy-900: #182338;
+  --color-navy-950: #0b1226;
 
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 @layer base {
+  /* Lucide icon defaults — hairline stroke + consistent 20px size.
+     Tailwind size utilities (h-X w-X) win because they're in the
+     utilities layer, which sits above base in the cascade. */
+  .lucide {
+    width: 20px;
+    height: 20px;
+    stroke-width: 1.5;
+  }
+
+  /* Light theme — white + sky + navy */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --background: 0 0% 100%;          /* white */
+    --foreground: 217 38% 21%;        /* navy-800 */
+    --surface: 0 0% 100%;             /* white */
+    --surface-elevated: 0 0% 100%;    /* white */
+    --surface-muted: 204 100% 97%;    /* sky-50 */
+    --border: 219 39% 93%;            /* navy-100 */
+    --border-strong: 219 30% 83%;     /* navy-200 */
+    --input: 219 39% 93%;             /* navy-100 */
+    --ring: 199 89% 48%;              /* sky-500 */
+    --muted-foreground: 218 30% 43%;  /* navy-500 */
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 199 89% 48%;
-    --primary: 199 89% 48%;
+    --card-foreground: 217 38% 21%;
+    --primary: 199 89% 48%;           /* sky-500 */
     --primary-foreground: 0 0% 100%;
+    --accent: 201 96% 39%;            /* sky-600 */
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
     --radius: 0.5rem;
+  }
+
+  /* Dark theme — navy + sky */
+  .dark {
+    --background: 222 51% 9%;         /* navy-950 */
+    --foreground: 204 100% 97%;       /* sky-50 */
+    --surface: 219 41% 16%;           /* navy-900 */
+    --surface-elevated: 217 38% 21%;  /* navy-800 */
+    --surface-muted: 217 38% 21%;     /* navy-800 */
+    --border: 220 32% 28%;            /* navy-700 */
+    --border-strong: 218 25% 36%;     /* navy-600 */
+    --input: 220 32% 28%;             /* navy-700 */
+    --ring: 198 93% 60%;              /* sky-400 */
+    --muted-foreground: 219 33% 70%;  /* navy-300 */
+    --card: 219 41% 16%;
+    --card-foreground: 204 100% 97%;
+    --primary: 198 93% 60%;           /* sky-400 */
+    --primary-foreground: 222 51% 9%;
+    --accent: 199 95% 74%;            /* sky-300 */
+    --accent-foreground: 222 51% 9%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 50%;
+    --warning: 38 92% 55%;
   }
 
   * {
     border-color: hsl(var(--border));
+  }
+
+  html {
+    color-scheme: light;
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {
@@ -44,17 +114,38 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+
+  /* Smooth theme transitions */
+  html, body {
+    transition: background-color 200ms ease, color 200ms ease;
+  }
 }
 
+/* =========================================================================
+   Token-backed utilities — referenced by Tailwind class names throughout the
+   app (e.g. `bg-card`, `text-muted-foreground`, `border-default`, `text-destructive`).
+   ========================================================================= */
 @layer utilities {
+  .bg-background { background-color: hsl(var(--background)); }
+  .bg-surface { background-color: hsl(var(--surface)); }
+  .bg-surface-elevated { background-color: hsl(var(--surface-elevated)); }
+  .bg-surface-muted { background-color: hsl(var(--surface-muted)); }
   .bg-card { background-color: hsl(var(--card)); }
+  .bg-muted { background-color: hsl(var(--surface-muted)); }
+  .bg-primary { background-color: hsl(var(--primary)); }
+  .bg-accent { background-color: hsl(var(--accent)); }
+  .bg-destructive { background-color: hsl(var(--destructive)); }
+
+  .text-foreground { color: hsl(var(--foreground)); }
   .text-card-foreground { color: hsl(var(--card-foreground)); }
-  .bg-muted { background-color: hsl(var(--muted)); }
   .text-muted-foreground { color: hsl(var(--muted-foreground)); }
+  .text-primary-foreground { color: hsl(var(--primary-foreground)); }
+  .text-accent-foreground { color: hsl(var(--accent-foreground)); }
+  .text-destructive-foreground { color: hsl(var(--destructive-foreground)); }
+  .text-destructive { color: hsl(var(--destructive)); }
+
+  .border-default { border-color: hsl(var(--border)); }
+  .border-strong { border-color: hsl(var(--border-strong)); }
   .border-input { border-color: hsl(var(--input)); }
   .ring-ring { --tw-ring-color: hsl(var(--ring)); }
-  .bg-primary { background-color: hsl(var(--primary)); }
-  .text-primary-foreground { color: hsl(var(--primary-foreground)); }
-  .bg-destructive { background-color: hsl(var(--destructive)); }
-  .text-destructive-foreground { color: hsl(var(--destructive-foreground)); }
 }

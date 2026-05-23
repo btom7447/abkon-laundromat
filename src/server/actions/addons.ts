@@ -7,26 +7,38 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 
-const SERVICES = ["WASH", "IRON", "DRY_CLEAN"] as const;
+const SERVICES = ["WASH", "IRON", "WASH_AND_IRON", "DRY_CLEAN"] as const;
+const ADDON_CATEGORY_IDS = ["care", "repair", "logistics", "urgency", "other"] as const;
 
 const addOnSchema = z.object({
   branchId: z.string().min(1),
   name: z.string().min(2).max(80),
+  category: z
+    .preprocess((v) => (v === "" || v == null ? null : v), z.enum(ADDON_CATEGORY_IDS).nullable())
+    .optional(),
   scope: z.enum(["PER_ITEM", "PER_TICKET"]),
   pricingMode: z.enum(["FLAT", "PERCENTAGE"]),
   amount: z.coerce.number().int().min(0).max(1_000_000),
   appliesToWash: z.preprocess((v) => v === "on" || v === true, z.boolean()).default(false),
   appliesToIron: z.preprocess((v) => v === "on" || v === true, z.boolean()).default(false),
+  appliesToWashAndIron: z.preprocess((v) => v === "on" || v === true, z.boolean()).default(false),
   appliesToDryClean: z.preprocess((v) => v === "on" || v === true, z.boolean()).default(false),
   active: z.preprocess((v) => v === "on" || v === true, z.boolean()).default(true),
 });
 
-export type AddOnFormState = { error?: string; fieldErrors?: Record<string, string[]> };
+export type AddOnFormState = {
+  error?: string;
+  fieldErrors?: Record<string, string[]>;
+  /** Set on modal-mode submits so the client can dismiss + refresh. */
+  success?: boolean;
+  createdId?: string;
+};
 
 function applicableServices(data: z.infer<typeof addOnSchema>): typeof SERVICES[number][] {
   const list: typeof SERVICES[number][] = [];
   if (data.appliesToWash) list.push("WASH");
   if (data.appliesToIron) list.push("IRON");
+  if (data.appliesToWashAndIron) list.push("WASH_AND_IRON");
   if (data.appliesToDryClean) list.push("DRY_CLEAN");
   return list;
 }
@@ -55,6 +67,7 @@ export async function createAddOnAction(
     data: {
       branchId: data.branchId,
       name: data.name,
+      category: data.category ?? null,
       scope: data.scope,
       pricingMode: data.pricingMode,
       amount: data.amount,
@@ -75,6 +88,7 @@ export async function createAddOnAction(
   });
 
   revalidatePath("/admin/addons");
+  if (formData.get("__modal") === "1") return { success: true, createdId: addOn.id };
   redirect(`/admin/addons?branch=${data.branchId}`);
 }
 
@@ -111,6 +125,7 @@ export async function updateAddOnAction(
     where: { id: addOnId },
     data: {
       name: data.name,
+      category: data.category ?? null,
       scope: data.scope,
       pricingMode: data.pricingMode,
       amount: data.amount,
@@ -134,5 +149,6 @@ export async function updateAddOnAction(
   });
 
   revalidatePath("/admin/addons");
+  if (formData.get("__modal") === "1") return { success: true };
   redirect(`/admin/addons?branch=${data.branchId}`);
 }

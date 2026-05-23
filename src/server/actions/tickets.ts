@@ -14,7 +14,7 @@ import { queueAndSendSms } from "@/lib/sms/send";
 
 const lineSchema = z.object({
   itemTypeId: z.string().min(1),
-  service: z.enum(["WASH", "IRON", "DRY_CLEAN"]),
+  service: z.enum(["WASH", "IRON", "WASH_AND_IRON", "DRY_CLEAN"]),
   quantity: z.coerce.number().int().min(1).max(10_000),
   negotiableUnitPrice: z.coerce.number().int().min(0).optional().nullable(),
   perItemAddOnIds: z.array(z.string()).default([]),

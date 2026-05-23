@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Enums ────────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ enum ItemUnit {
 enum Service {
   WASH
   IRON
+  WASH_AND_IRON
   DRY_CLEAN
 }
 
@@ -122,6 +124,11 @@ model User {
   passwordHash  String
   mfaEnabled    Boolean  @default(false)
   mfaSecret     String? // TOTP secret, encrypted at rest in future
+  // Phone-OTP password reset — code is argon2id-hashed, never stored in plaintext.
+  // Cleared on successful reset, on rate-limit blowout, and overwritten on new request.
+  passwordResetCodeHash      String?
+  passwordResetCodeExpiresAt DateTime?
+  passwordResetAttempts      Int       @default(0)
   lastLoginAt   DateTime?
   failedLoginAttempts Int @default(0)
   lockedUntil   DateTime?
@@ -183,10 +190,14 @@ model ItemType {
   id            String   @id @default(cuid())
   branchId      String
   name          String
-  unit          ItemUnit @default(PIECE)
-  washPrice     Int? // ₦, null = service not offered for this item
-  ironPrice     Int?
-  dryCleanPrice Int?
+  // Catalog category (tops/bottoms/native/formal/household/negotiable/other).
+  // Optional — when null, the POS falls back to a name-based lookup.
+  category      String?
+  unit              ItemUnit @default(PIECE)
+  washPrice         Int? // ₦, null = service not offered for this item
+  ironPrice         Int?
+  washAndIronPrice  Int? // null = derive from washPrice + ironPrice
+  dryCleanPrice     Int?
   displayOrder  Int      @default(0)
   active        Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -204,6 +215,9 @@ model AddOn {
   id                  String      @id @default(cuid())
   branchId            String
   name                String
+  // Catalog category (care/repair/logistics/urgency/other). Optional — when
+  // null, the resolver falls back to a name-based lookup.
+  category            String?
   scope               AddOnScope
   pricingMode         PricingMode @default(FLAT)
   amount              Int // ₦ (flat) or % (percentage)

@@ -20,41 +20,16 @@ export type IntakeSummaryInput = {
   paid: boolean;
 };
 
-const SERVICE_LABEL: Record<Service, string> = {
-  WASH: "wash",
-  IRON: "iron",
-  DRY_CLEAN: "dry-clean",
-};
-
+/**
+ * Intake SMS — single GSM-7 segment (≤160 ASCII chars). We avoid em dash, ₦,
+ * and bullets because any one of them flips Termii to UCS-2 (70 chars/segment).
+ * Naira amount is rendered as "NGN 2,000" and the date as the medium locale
+ * format ("25 May 2026") to stay within the budget.
+ */
 export function renderIntakeSummary(input: IntakeSummaryInput): string {
-  const lines: string[] = [
-    `Abkon Laundromat — Ticket ${input.ticketNumber}`,
-    `Hi ${input.customerName.split(" ")[0]}, we've received your laundry.`,
-    ``,
-    `Items:`,
-  ];
-
-  for (const line of input.lines) {
-    lines.push(
-      `• ${line.quantity} ${line.unitLabel} × ${line.itemName} (${SERVICE_LABEL[line.service]}) — ${formatNaira(line.subtotal)}`
-    );
-  }
-
-  for (const addOn of input.perTicketAddOns) {
-    lines.push(`• ${addOn.name} — ${formatNaira(addOn.amount)}`);
-  }
-
-  if (input.discountAmount > 0) {
-    lines.push(`• Discount: −${formatNaira(input.discountAmount)}`);
-  }
-
-  lines.push(``);
-  lines.push(`Total: ${formatNaira(input.grandTotal)} (${input.paid ? "PAID" : "due on collection"})`);
-  lines.push(`Pickup from: ${formatDateOnly(input.pickupDate)}`);
-  lines.push(``);
-  lines.push(`Keep this ticket number for pickup.`);
-
-  return lines.join("\n");
+  const totalLabel = input.paid ? "paid in full" : "due on collection";
+  const totalStr = input.grandTotal.toLocaleString("en-NG");
+  return `Abkon Laundromat: Order received. Ticket ${input.ticketNumber}. Total NGN ${totalStr} ${totalLabel}. Pickup ${formatDateOnly(input.pickupDate)}. Keep this ticket for pickup.`;
 }
 
 export function renderReadyNotification(input: {
@@ -72,6 +47,17 @@ export function renderReadyNotification(input: {
     balance,
     `Show this ticket number at reception.`,
   ].join("\n");
+}
+
+/**
+ * Password reset OTP — ASCII-only single GSM-7 segment so Termii ships one
+ * billable unit regardless of phone provider.
+ */
+export function renderPasswordResetCode(input: {
+  code: string;
+  minutesValid: number;
+}): string {
+  return `Abkon Laundromat: Your password reset code is ${input.code}. It expires in ${input.minutesValid} minutes. Do not share this code.`;
 }
 
 export function renderReminder(input: {

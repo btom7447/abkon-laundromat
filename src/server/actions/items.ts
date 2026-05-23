@@ -7,24 +7,56 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 
-const itemSchema = z.object({
-  branchId: z.string().min(1),
-  name: z.string().min(2).max(80),
-  unit: z.enum(["PIECE", "SQM", "NEGOTIABLE"]),
-  washPrice: z
-    .preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).nullable())
-    .optional(),
-  ironPrice: z
-    .preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).nullable())
-    .optional(),
-  dryCleanPrice: z
-    .preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).nullable())
-    .optional(),
-  displayOrder: z.coerce.number().int().min(0).max(10_000).default(0),
-  active: z.preprocess((v) => v === "on" || v === true, z.boolean()).default(true),
-});
+const onOff = z.preprocess((v) => v === "on" || v === true, z.boolean()).default(false);
 
-export type ItemFormState = { error?: string; fieldErrors?: Record<string, string[]> };
+const CATEGORY_IDS = ["tops", "bottoms", "native", "formal", "household", "negotiable", "other"] as const;
+
+const itemSchema = z
+  .object({
+    branchId: z.string().min(1),
+    name: z.string().min(2).max(80),
+    category: z
+      .preprocess((v) => (v === "" || v == null ? null : v), z.enum(CATEGORY_IDS).nullable())
+      .optional(),
+    unit: z.enum(["PIECE", "SQM", "NEGOTIABLE"]),
+    // Per-service offered toggles — if off, the price is stored as null no
+    // matter what value sits in the input.
+    washOffered: onOff,
+    ironOffered: onOff,
+    washAndIronOffered: onOff,
+    dryCleanOffered: onOff,
+    washPrice: z
+      .preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).nullable())
+      .optional(),
+    ironPrice: z
+      .preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).nullable())
+      .optional(),
+    washAndIronPrice: z
+      .preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).nullable())
+      .optional(),
+    dryCleanPrice: z
+      .preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).nullable())
+      .optional(),
+    displayOrder: z.coerce.number().int().min(0).max(10_000).default(0),
+    active: z.preprocess((v) => v === "on" || v === true, z.boolean()).default(true),
+  })
+  .transform((d) => ({
+    ...d,
+    // Apply the toggle gate — services marked "not offered" force their price
+    // to null regardless of what was typed in the (now-disabled) field.
+    washPrice: d.washOffered ? d.washPrice ?? null : null,
+    ironPrice: d.ironOffered ? d.ironPrice ?? null : null,
+    washAndIronPrice: d.washAndIronOffered ? d.washAndIronPrice ?? null : null,
+    dryCleanPrice: d.dryCleanOffered ? d.dryCleanPrice ?? null : null,
+  }));
+
+export type ItemFormState = {
+  error?: string;
+  fieldErrors?: Record<string, string[]>;
+  /** Set on modal-mode submits so the client can dismiss + refresh. */
+  success?: boolean;
+  createdId?: string;
+};
 
 export async function createItemAction(
   _prev: ItemFormState,
@@ -47,9 +79,11 @@ export async function createItemAction(
     data: {
       branchId: data.branchId,
       name: data.name,
+      category: data.category ?? null,
       unit: data.unit,
       washPrice: data.washPrice ?? null,
       ironPrice: data.ironPrice ?? null,
+      washAndIronPrice: data.washAndIronPrice ?? null,
       dryCleanPrice: data.dryCleanPrice ?? null,
       displayOrder: data.displayOrder,
       active: data.active,
@@ -68,6 +102,7 @@ export async function createItemAction(
   });
 
   revalidatePath(`/admin/items`);
+  if (formData.get("__modal") === "1") return { success: true, createdId: item.id };
   redirect(`/admin/items?branch=${data.branchId}`);
 }
 
@@ -101,9 +136,11 @@ export async function updateItemAction(
     where: { id: itemId },
     data: {
       name: data.name,
+      category: data.category ?? null,
       unit: data.unit,
       washPrice: data.washPrice ?? null,
       ironPrice: data.ironPrice ?? null,
+      washAndIronPrice: data.washAndIronPrice ?? null,
       dryCleanPrice: data.dryCleanPrice ?? null,
       displayOrder: data.displayOrder,
       active: data.active,
@@ -114,6 +151,7 @@ export async function updateItemAction(
   const priceChanged =
     before.washPrice !== after.washPrice ||
     before.ironPrice !== after.ironPrice ||
+    before.washAndIronPrice !== after.washAndIronPrice ||
     before.dryCleanPrice !== after.dryCleanPrice;
 
   await recordAudit({
@@ -128,5 +166,6 @@ export async function updateItemAction(
   });
 
   revalidatePath(`/admin/items`);
+  if (formData.get("__modal") === "1") return { success: true };
   redirect(`/admin/items?branch=${data.branchId}`);
 }
