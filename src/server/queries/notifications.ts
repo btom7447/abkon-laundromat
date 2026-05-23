@@ -10,13 +10,50 @@ export type NotificationItem = {
   ticketNumber?: string | null;
   href: string;
   createdAt: Date;
+  /** True when this user has previously marked this notification as read. */
+  read?: boolean;
 };
 
 /**
  * Live attention items — derived from current ticket + cash state, not stored.
  * Pulled per-branch (or all branches for admin without a branch).
+ *
+ * When `userId` is provided, each item's `read` field is filled from the
+ * NotificationRead table so the UI can dim already-seen notifications and the
+ * badge can show an accurate unread count.
  */
-export async function getNotifications(opts: { branchId: string | null }): Promise<NotificationItem[]> {
+type NotificationPrefs = {
+  urgent: boolean;
+  uncollected: boolean;
+  unpaid: boolean;
+  smsFailed: boolean;
+  cashReconcile: boolean;
+};
+
+const DEFAULT_PREFS: NotificationPrefs = {
+  urgent: true,
+  uncollected: true,
+  unpaid: true,
+  smsFailed: true,
+  cashReconcile: true,
+};
+
+function resolvePrefs(raw: unknown): NotificationPrefs {
+  if (!raw || typeof raw !== "object") return DEFAULT_PREFS;
+  const r = raw as Partial<NotificationPrefs>;
+  return {
+    urgent: r.urgent ?? true,
+    uncollected: r.uncollected ?? true,
+    unpaid: r.unpaid ?? true,
+    smsFailed: r.smsFailed ?? true,
+    cashReconcile: r.cashReconcile ?? true,
+  };
+}
+
+export async function getNotifications(opts: {
+  branchId: string | null;
+  userId?: string | null;
+}): Promise<NotificationItem[]> {
   const now = new Date();
   const branchFilter = opts.branchId ? { branchId: opts.branchId } : {};
 
@@ -70,8 +107,21 @@ export async function getNotifications(opts: { branchId: string | null }): Promi
       : Promise.resolve(null),
   ]);
 
+  // Pull user prefs in parallel with the rest, if a user was provided.
+  const userPrefs: NotificationPrefs = opts.userId
+    ? resolvePrefs(
+        (
+          await db.user.findUnique({
+            where: { id: opts.userId },
+            select: { notificationPrefs: true },
+          })
+        )?.notificationPrefs ?? null
+      )
+    : DEFAULT_PREFS;
+
   const items: NotificationItem[] = [];
 
+  if (userPrefs.urgent)
   for (const t of urgentDueToday) {
     items.push({
       id: `urgent-${t.id}`,
@@ -84,6 +134,7 @@ export async function getNotifications(opts: { branchId: string | null }): Promi
     });
   }
 
+  if (userPrefs.uncollected)
   for (const t of uncollected) {
     const days = Math.floor((now.getTime() - (t.readyAt?.getTime() ?? now.getTime())) / 86_400_000);
     items.push({
@@ -97,6 +148,7 @@ export async function getNotifications(opts: { branchId: string | null }): Promi
     });
   }
 
+  if (userPrefs.unpaid)
   for (const t of unpaidLong) {
     items.push({
       id: `unpaid-${t.id}`,
@@ -109,6 +161,7 @@ export async function getNotifications(opts: { branchId: string | null }): Promi
     });
   }
 
+  if (userPrefs.smsFailed)
   for (const s of failedSms) {
     items.push({
       id: `sms-${s.id}`,
@@ -120,7 +173,7 @@ export async function getNotifications(opts: { branchId: string | null }): Promi
     });
   }
 
-  if (opts.branchId && !missedReconcile) {
+  if (userPrefs.cashReconcile && opts.branchId && !missedReconcile) {
     items.push({
       id: `cash-yesterday`,
       tone: "sky",
@@ -131,7 +184,23 @@ export async function getNotifications(opts: { branchId: string | null }): Promi
     });
   }
 
-  return items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const sorted = items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  // Layer per-user read state on top so the badge can show an unread count and
+  // each row can render in a "seen" style.
+  if (opts.userId && sorted.length > 0) {
+    const reads = await db.notificationRead.findMany({
+      where: {
+        userId: opts.userId,
+        notificationId: { in: sorted.map((s) => s.id) },
+      },
+      select: { notificationId: true },
+    });
+    const readSet = new Set(reads.map((r) => r.notificationId));
+    return sorted.map((n) => ({ ...n, read: readSet.has(n.id) }));
+  }
+
+  return sorted;
 }
 
 function formatTime(d: Date): string {

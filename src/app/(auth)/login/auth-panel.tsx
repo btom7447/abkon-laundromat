@@ -12,6 +12,7 @@ import {
   EyeOff,
   CheckCircle2,
   ShieldCheck,
+  Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { loginAction, type LoginState } from "./actions";
@@ -117,15 +118,24 @@ function SignInForm({
 }) {
   const [state, formAction, pending] = useActionState(loginAction, {} as LoginState);
   const [showPassword, setShowPassword] = useState(false);
+  // Cache the credentials between submissions so the user doesn't have to retype
+  // them when the MFA step appears.
+  const [emailDraft, setEmailDraft] = useState("");
+  const [passwordDraft, setPasswordDraft] = useState("");
   const errorMsg = state.error ?? initialError;
+  const mfaStep = !!state.mfaRequired;
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
       {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
 
       <Header
-        title="Welcome back"
-        sub="Sign in to your Abkon Laundromat account."
+        title={mfaStep ? "Two-factor verification" : "Welcome back"}
+        sub={
+          mfaStep
+            ? "Open your authenticator app and enter the 6-digit code, or use a recovery code."
+            : "Sign in to your Abkon Laundromat account."
+        }
       />
 
       {errorMsg && (
@@ -134,59 +144,102 @@ function SignInForm({
         </div>
       )}
 
-      <FieldGroup label="Email" icon={<Mail />} error={state.fieldErrors?.email}>
-        <input
-          id="signin-email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          inputMode="email"
-          spellCheck={false}
-          required
-          placeholder="you@abkon.ng"
-          aria-invalid={!!state.fieldErrors?.email}
-          className={inputCls}
-        />
-      </FieldGroup>
-
-      <FieldGroup
-        label="Password"
-        icon={<KeyRound />}
-        error={state.fieldErrors?.password}
-        right={
-          <button
-            type="button"
-            onClick={onForgot}
-            className="text-[11.5px] font-medium text-brand-700 transition-colors hover:underline dark:text-brand-300"
-          >
-            Forgot password?
-          </button>
-        }
-      >
-        <div className="relative">
+      {/* Email + password fields stay rendered (hidden when MFA step is active)
+          so their form values still submit on the MFA step. */}
+      <div className={cn(mfaStep && "hidden")}>
+        <FieldGroup label="Email" icon={<Mail />} error={state.fieldErrors?.email}>
           <input
-            id="signin-password"
-            name="password"
-            type={showPassword ? "text" : "password"}
-            autoComplete="current-password"
+            id="signin-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            inputMode="email"
+            spellCheck={false}
             required
-            placeholder="••••••••"
-            aria-invalid={!!state.fieldErrors?.password}
-            className={cn(inputCls, "pr-10")}
+            placeholder="you@abkon.ng"
+            value={emailDraft}
+            onChange={(e) => setEmailDraft(e.target.value)}
+            aria-invalid={!!state.fieldErrors?.email}
+            className={inputCls}
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword((s) => !s)}
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
-          >
-            {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-      </FieldGroup>
+        </FieldGroup>
+      </div>
 
-      <SubmitButton pending={pending} pendingLabel="Signing in…">
-        Sign in
+      <div className={cn(mfaStep && "hidden")}>
+        <FieldGroup
+          label="Password"
+          icon={<KeyRound />}
+          error={state.fieldErrors?.password}
+          right={
+            <button
+              type="button"
+              onClick={onForgot}
+              className="text-[11.5px] font-medium text-brand-700 transition-colors hover:underline dark:text-brand-300"
+            >
+              Forgot password?
+            </button>
+          }
+        >
+          <div className="relative">
+            <input
+              id="signin-password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              required
+              placeholder="••••••••"
+              value={passwordDraft}
+              onChange={(e) => setPasswordDraft(e.target.value)}
+              aria-invalid={!!state.fieldErrors?.password}
+              className={cn(inputCls, "pr-10")}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((s) => !s)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+            >
+              {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+        </FieldGroup>
+      </div>
+
+      {mfaStep && (
+        <>
+          <div className="flex items-center gap-2.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2.5 text-[12.5px] text-brand-800 dark:border-brand-900/40 dark:bg-brand-950/30 dark:text-brand-200">
+            <Smartphone className="h-4 w-4 shrink-0" />
+            Signing in as{" "}
+            <span className="font-mono font-semibold">{state.email}</span>
+          </div>
+
+          <FieldGroup
+            label="6-digit code"
+            icon={<ShieldCheck />}
+            error={state.fieldErrors?.mfaCode}
+            right={
+              <span className="text-[10.5px] text-muted-foreground">Or a recovery code</span>
+            }
+          >
+            <input
+              id="signin-mfa"
+              name="mfaCode"
+              type="text"
+              inputMode="text"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              maxLength={20}
+              placeholder="123 456"
+              aria-invalid={!!state.fieldErrors?.mfaCode}
+              className={cn(inputCls, "text-center font-mono text-[18px] tracking-[0.3em]")}
+            />
+          </FieldGroup>
+        </>
+      )}
+
+      <SubmitButton pending={pending} pendingLabel={mfaStep ? "Verifying…" : "Signing in…"}>
+        {mfaStep ? "Verify and sign in" : "Sign in"}
       </SubmitButton>
     </form>
   );

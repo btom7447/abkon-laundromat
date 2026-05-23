@@ -54,7 +54,7 @@ interface Branch {
 interface Props {
   notifications: NotificationItem[];
   branchId: string | null;
-  user: { name: string; email: string; role: Role };
+  user: { name: string; email: string; role: Role; avatarUrl?: string | null };
   activeBranch: Branch | null;
   branches: Branch[];
   canSwitchBranch: boolean;
@@ -127,15 +127,18 @@ export function Topbar({
         />
         <div className="hidden md:contents">
           <GlobalSearch branchId={branchId} />
-          <NotificationsButton items={notifications} />
           <ThemeToggle />
           <span className="mx-1 h-5 w-px bg-[hsl(var(--border))]" aria-hidden />
         </div>
+        {/* Notifications button — visible on mobile too so the bell badge + modal
+            work on every screen size. ProfileMenu opens the bell via custom event. */}
+        <NotificationsButton items={notifications} />
         <ProfileMenu
           name={user.name}
           email={user.email}
           role={user.role}
           branchCode={activeBranch?.code ?? null}
+          avatarUrl={user.avatarUrl ?? null}
           notifications={notifications}
         />
       </div>

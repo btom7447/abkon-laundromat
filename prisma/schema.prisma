@@ -119,19 +119,31 @@ model User {
   name          String
   email         String   @unique
   phone         String?
+  // Stored as a data URL (base64) for now — capped client-side around 80KB after
+  // canvas resize. Migrate to Supabase Storage / R2 once we exceed ~50 staff.
+  avatarUrl     String?  @db.Text
   role          Role
   branchId      String? // null for admin (sees all)
   passwordHash  String
   mfaEnabled    Boolean  @default(false)
   mfaSecret     String? // TOTP secret, encrypted at rest in future
+  mfaRecoveryCodes String[] @default([]) // argon2id-hashed one-time recovery codes
   // Phone-OTP password reset — code is argon2id-hashed, never stored in plaintext.
   // Cleared on successful reset, on rate-limit blowout, and overwritten on new request.
   passwordResetCodeHash      String?
   passwordResetCodeExpiresAt DateTime?
   passwordResetAttempts      Int       @default(0)
+  passwordChangedAt          DateTime?
   lastLoginAt   DateTime?
   failedLoginAttempts Int @default(0)
   lockedUntil   DateTime?
+  // Personal preferences
+  themePreference     String?  // "light" | "dark" | "system" — null = follow client default
+  notificationPrefs   Json?    // { categories: { urgent: bool, uncollected: bool, … } }
+  // Account deletion request — soft signal that the user wants their account removed.
+  // An admin still has to approve via /admin/users.
+  deletionRequestedAt     DateTime?
+  deletionRequestedReason String?
   active        Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -144,6 +156,8 @@ model User {
   discountsApplied Ticket[] @relation("TicketDiscountBy")
   cashReconciliations CashReconciliation[]
   bookingsVerified Booking[] @relation("BookingVerifiedBy")
+  notificationReads NotificationRead[]
+  pinnedItems       UserPinnedItem[]
 
   @@index([branchId])
   @@index([role])
@@ -206,6 +220,7 @@ model ItemType {
 
   branch    Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
   lineItems TicketLineItem[]
+  pinnedBy  UserPinnedItem[]
 
   @@unique([branchId, name])
   @@index([branchId, active])
@@ -403,6 +418,36 @@ model WhatsAppMessage {
 }
 
 // ─── Ops ──────────────────────────────────────────────────────────────────
+
+/// Per-user "I've seen this notification" record. Notification items are
+/// derived live (ticket/cash state), so we don't store them — we only track
+/// which derived IDs each user has marked as read.
+model NotificationRead {
+  id             String   @id @default(cuid())
+  userId         String
+  notificationId String
+  readAt         DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationId])
+  @@index([userId])
+}
+
+/// Per-user pinned catalog item. Pinned items float to the top of the POS
+/// catalog for that user. Order is by `pinnedAt` desc.
+model UserPinnedItem {
+  id          String   @id @default(cuid())
+  userId      String
+  itemTypeId  String
+  pinnedAt    DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemType    ItemType @relation(fields: [itemTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemTypeId])
+  @@index([userId])
+}
 
 model AuditLog {
   id          String   @id @default(cuid())

@@ -1,10 +1,11 @@
 "use client";
 
-import { Search, SlidersHorizontal, ShoppingBag } from "lucide-react";
+import { Search, SlidersHorizontal, ShoppingBag, Pin } from "lucide-react";
 import { motion } from "framer-motion";
 import { Illustration, type IllustrationName } from "@/components/brand/illustrations";
 import type { PosCategoryId } from "@/lib/pos-categories";
 import { POS_CATEGORIES } from "@/lib/pos-categories";
+import { cn } from "@/lib/utils";
 
 export interface PosItem {
   id: string;
@@ -16,6 +17,8 @@ export interface PosItem {
   dryCleanPrice: number | null;
   category: PosCategoryId;
   illustration: IllustrationName;
+  /** Surfaces this item at the top of the grid for the current user. */
+  pinned?: boolean;
 }
 
 interface Props {
@@ -121,7 +124,11 @@ export function ItemGrid({
             {search ? <>No items match <strong>{search}</strong>.</> : "No items in this category."}
           </div>
         )}
-        {items.map((it) => {
+        {[...items]
+          // Pinned items sort to the top of the grid so the user's "frequent
+          // five" sit at the entry point of the catalog.
+          .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned))
+          .map((it) => {
           const qty = cartQty(it.id);
           const isNeg = it.unit === "NEGOTIABLE";
           const isSqm = it.unit === "SQM";
@@ -148,8 +155,20 @@ export function ItemGrid({
                   {qty}
                 </motion.span>
               )}
+              {it.pinned && (
+                <span
+                  aria-label="Pinned"
+                  title="Pinned to top from your profile"
+                  className="absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 text-white shadow-[0_2px_6px_-1px_rgb(14_165_233/0.45)]"
+                >
+                  <Pin className="h-2.5 w-2.5" />
+                </span>
+              )}
               {isNeg && (
-                <span className="absolute left-2 top-2 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                <span className={cn(
+                  "absolute top-2 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+                  it.pinned ? "left-9" : "left-2"
+                )}>
                   Neg.
                 </span>
               )}

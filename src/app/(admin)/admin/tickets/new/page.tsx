@@ -18,7 +18,7 @@ export default async function NewTicketPage({ searchParams }: PageProps) {
   const ctx = await resolveBranchContext(user, requested ?? null);
   if (!ctx) notFound();
 
-  const [branch, items, addOns] = await Promise.all([
+  const [branch, items, addOns, pinned] = await Promise.all([
     db.branch.findUnique({ where: { id: ctx.branchId } }),
     db.itemType.findMany({
       where: { branchId: ctx.branchId, active: true },
@@ -27,6 +27,12 @@ export default async function NewTicketPage({ searchParams }: PageProps) {
     db.addOn.findMany({
       where: { branchId: ctx.branchId, active: true },
       orderBy: [{ scope: "asc" }, { name: "asc" }],
+    }),
+    // Per-user pinned items in this branch — surfaced at the top of the catalog
+    db.userPinnedItem.findMany({
+      where: { userId: user.id, itemType: { branchId: ctx.branchId, active: true } },
+      orderBy: { pinnedAt: "desc" },
+      select: { itemTypeId: true },
     }),
   ]);
 
@@ -47,6 +53,8 @@ export default async function NewTicketPage({ searchParams }: PageProps) {
     );
   }
 
+  const pinnedSet = new Set(pinned.map((p) => p.itemTypeId));
+
   return (
     <PosBoard
       branch={{
@@ -65,8 +73,9 @@ export default async function NewTicketPage({ searchParams }: PageProps) {
         ironPrice: i.ironPrice,
         washAndIronPrice: i.washAndIronPrice,
         dryCleanPrice: i.dryCleanPrice,
-        category: categoryForItem(i.name, i.unit),
+        category: categoryForItem(i.name, i.unit, i.category),
         illustration: illustrationForItem(i.name),
+        pinned: pinnedSet.has(i.id),
       }))}
       perItemAddOns={addOns
         .filter((a) => a.scope === "PER_ITEM")

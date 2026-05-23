@@ -46,14 +46,34 @@ function applyClass(resolved: ResolvedTheme) {
   root.style.colorScheme = resolved;
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Hydrate from storage on first client render
-  const [theme, setThemeState] = useState<Theme>(() =>
-    typeof window === "undefined" ? "system" : readStored()
-  );
+export function ThemeProvider({
+  children,
+  initialTheme,
+}: {
+  children: ReactNode;
+  /** Server-resolved theme preference. Wins over localStorage on first paint. */
+  initialTheme?: Theme | null;
+}) {
+  // Hydrate from server preference (if signed in) → localStorage → "system"
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (initialTheme) return initialTheme;
+    return typeof window === "undefined" ? "system" : readStored();
+  });
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
     typeof window === "undefined" ? "light" : readSystem()
   );
+
+  // If the server-side preference resolves later (e.g. on first signed-in
+  // render with no localStorage match), keep state in sync without thrashing.
+  useEffect(() => {
+    if (initialTheme && initialTheme !== theme) {
+      setThemeState(initialTheme);
+      try {
+        window.localStorage.setItem(STORAGE_KEY, initialTheme);
+      } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTheme]);
 
   // Sync resolvedTheme + DOM class whenever the user's choice changes
   useEffect(() => {
@@ -82,6 +102,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore quota / disabled storage
     }
+    // Persist server-side so the choice follows the user across devices. Fire
+    // and forget — local state has already updated and localStorage is the
+    // fallback if the request fails.
+    fetch("/api/theme", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ theme: next }),
+    }).catch(() => {});
   }, []);
 
   const value = useMemo(

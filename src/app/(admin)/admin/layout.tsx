@@ -26,8 +26,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     targetBranchId = firstBranch?.id ?? null;
   }
 
-  const [allBranches, activeBranch, ticketsInFlight, activeItemsCount, activeAddonsCount, notifications] =
-    await Promise.all([
+  const [
+    allBranches,
+    activeBranch,
+    ticketsInFlight,
+    activeItemsCount,
+    activeAddonsCount,
+    notifications,
+    userRecord,
+  ] = await Promise.all([
       user.role === "ADMIN"
         ? db.branch.findMany({
             select: { id: true, name: true, code: true },
@@ -62,7 +69,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       targetBranchId
         ? db.addOn.count({ where: { branchId: targetBranchId, active: true } })
         : Promise.resolve(0),
-      getNotifications({ branchId: targetBranchId ?? null }),
+      getNotifications({ branchId: targetBranchId ?? null, userId: user.id }),
+      db.user.findUnique({
+        where: { id: user.id },
+        select: { avatarUrl: true, themePreference: true },
+      }),
     ]);
 
   return (
@@ -81,7 +92,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <Topbar
           notifications={notifications}
           branchId={activeBranch?.id ?? null}
-          user={{ name: user.name, email: user.email, role: user.role }}
+          user={{
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            avatarUrl: userRecord?.avatarUrl ?? null,
+          }}
           activeBranch={activeBranch}
           branches={allBranches}
           canSwitchBranch={user.role === "ADMIN" && allBranches.length > 1}

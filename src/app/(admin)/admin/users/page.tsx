@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, Mail, Phone, Building2, Clock, Lock, ShieldCheck } from "lucide-react";
+import { Plus, Mail, Phone, Building2, Clock, Lock, ShieldCheck, AlertTriangle } from "lucide-react";
 import type { Role } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/rbac";
 import { formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar } from "@/components/ui/avatar";
 import { StaffModal } from "./staff-modal";
 import { cn } from "@/lib/utils";
 
@@ -19,17 +20,6 @@ const ROLE_PILL_CLS: Record<Role, string> = {
   ADMIN: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200",
   RECEPTION: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
 };
-
-function avatarColor(seed: string): string {
-  const palette = ["#0EA5E9", "#16A34A", "#0369A1", "#7C3AED", "#DB2777", "#F59E0B", "#DC2626", "#0891B2"];
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return palette[Math.abs(h) % palette.length]!;
-}
-
-function initials(name: string): string {
-  return name.split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? "").join("");
-}
 
 export default async function UsersPage({ searchParams }: PageProps) {
   await requireAdmin();
@@ -104,6 +94,41 @@ export default async function UsersPage({ searchParams }: PageProps) {
             tone={lockedCount > 0 ? "warn" : undefined}
           />
         </div>
+
+        {/* Pending deletion requests — admin needs to see + act on these */}
+        {users.some((u) => u.deletionRequestedAt) && (
+          <div className="flex flex-col gap-2.5 rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-[0_1px_2px_0_rgb(15_23_42/0.04)] dark:border-amber-900/40 dark:bg-amber-950/20">
+            <div className="flex items-center gap-2 [&_svg]:h-4 [&_svg]:w-4">
+              <AlertTriangle className="text-amber-700 dark:text-amber-300" />
+              <h3 className="text-[13px] font-semibold text-amber-900 dark:text-amber-100">
+                Account deletion requests
+              </h3>
+              <span className="ml-auto rounded-full bg-amber-200 px-2 py-0.5 text-[10.5px] font-semibold text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
+                {users.filter((u) => u.deletionRequestedAt).length}
+              </span>
+            </div>
+            <p className="text-[11.5px] text-amber-800/85 dark:text-amber-200/85">
+              These users have asked for their account to be removed. Open the staff card to review
+              the reason and confirm or reject.
+            </p>
+            <ul className="flex flex-wrap gap-1.5">
+              {users
+                .filter((u) => u.deletionRequestedAt)
+                .map((u) => (
+                  <li key={u.id}>
+                    <Link
+                      href={`/admin/users?edit=${u.id}`}
+                      scroll={false}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11.5px] font-medium text-amber-900 ring-1 ring-amber-200 transition-colors hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-800/60 dark:hover:bg-amber-900/60"
+                    >
+                      <Mail className="h-2.5 w-2.5" />
+                      {u.email}
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
 
         {/* Role filter chip bar */}
         {users.length > 0 && (
@@ -247,6 +272,7 @@ function StaffCard({
     name: string;
     email: string;
     phone: string | null;
+    avatarUrl: string | null;
     role: Role;
     branch: { id: string; name: string; code: string } | null;
     lastLoginAt: Date | null;
@@ -263,12 +289,7 @@ function StaffCard({
     >
       {/* Header */}
       <div className="flex items-start gap-3.5">
-        <span
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[14.5px] font-semibold text-white"
-          style={{ background: avatarColor(u.email) }}
-        >
-          {initials(u.name)}
-        </span>
+        <Avatar name={u.name} seed={u.email} src={u.avatarUrl} size={48} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <h3 className="truncate text-[15px] font-semibold text-foreground">{u.name}</h3>

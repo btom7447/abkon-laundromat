@@ -6,7 +6,11 @@ import { Settings, User, ChevronDown, Bell, Sun, Moon, Monitor } from "lucide-re
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/components/theme-provider";
 import type { Role } from "@prisma/client";
-import type { NotificationItem } from "@/components/admin/notifications-button";
+import {
+  NOTIFICATIONS_OPEN_EVENT,
+  type NotificationItem,
+} from "@/components/admin/notifications-button";
+import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -14,25 +18,18 @@ interface Props {
   email: string;
   role: Role;
   branchCode?: string | null;
+  avatarUrl?: string | null;
   notifications?: NotificationItem[];
 }
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
-function avatarColor(seed: string): string {
-  const palette = ["#0EA5E9", "#16A34A", "#0369A1", "#7C3AED", "#DB2777", "#F59E0B", "#DC2626", "#0891B2"];
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return palette[Math.abs(h) % palette.length]!;
-}
-
-export function ProfileMenu({ name, email, role, branchCode, notifications = [] }: Props) {
+export function ProfileMenu({
+  name,
+  email,
+  role,
+  branchCode,
+  avatarUrl,
+  notifications = [],
+}: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
@@ -54,6 +51,16 @@ export function ProfileMenu({ name, email, role, branchCode, notifications = [] 
     { key: "system" as const, Icon: Monitor, label: "System" },
   ];
 
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  function openNotifications() {
+    setOpen(false);
+    // Defer to next tick so the dropdown close animation kicks in first.
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new CustomEvent(NOTIFICATIONS_OPEN_EVENT));
+    });
+  }
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -62,21 +69,9 @@ export function ProfileMenu({ name, email, role, branchCode, notifications = [] 
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Profile menu"
-        className="relative inline-flex h-8 items-center gap-2 rounded-full pl-1 pr-2 transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="relative inline-flex h-8 items-center gap-1.5 rounded-full pl-1 pr-2 transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
-        <span
-          className="flex h-7 w-7 items-center justify-center rounded-full text-[11.5px] font-semibold text-white"
-          style={{ background: avatarColor(email) }}
-        >
-          {initials(name)}
-        </span>
-        {/* Mobile-only red dot mirrors the bell badge since the bell is hidden */}
-        {notifications.length > 0 && (
-          <span
-            aria-hidden
-            className="absolute right-1 top-0.5 h-[7px] w-[7px] rounded-full bg-red-500 ring-2 ring-surface md:hidden"
-          />
-        )}
+        <Avatar name={name} seed={email} src={avatarUrl} size={28} />
         <ChevronDown
           className="h-3 w-3 text-muted-foreground transition-transform duration-200"
           style={{ transform: open ? "rotate(180deg)" : undefined }}
@@ -95,12 +90,7 @@ export function ProfileMenu({ name, email, role, branchCode, notifications = [] 
           >
             {/* Identity strip */}
             <div className="flex items-center gap-3 border-b border-default p-3">
-              <span
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold text-white"
-                style={{ background: avatarColor(email) }}
-              >
-                {initials(name)}
-              </span>
+              <Avatar name={name} seed={email} src={avatarUrl} size={40} />
               <div className="flex min-w-0 flex-col leading-tight">
                 <span className="truncate text-[13.5px] font-semibold text-foreground">{name}</span>
                 <span className="truncate text-[11.5px] text-muted-foreground">{email}</span>
@@ -136,32 +126,36 @@ export function ProfileMenu({ name, email, role, branchCode, notifications = [] 
                 </div>
               </div>
 
-              {notifications.length === 0 ? (
-                <div className="flex items-center gap-2.5 rounded-md px-1.5 py-1.5">
-                  <Bell className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-[12px] text-muted-foreground">No notifications</span>
-                </div>
-              ) : (
-                <Link
-                  href={notifications[0]!.href}
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-2.5 rounded-md px-1.5 py-1.5 transition-colors hover:bg-surface-muted"
-                >
-                  <Bell className="h-4 w-4 text-muted-foreground" />
-                  <span className="flex-1 truncate text-[12px] font-medium text-foreground">
-                    {notifications.length === 1 ? notifications[0]!.title : `${notifications.length} notifications`}
+              <button
+                type="button"
+                onClick={openNotifications}
+                className="flex w-full items-center gap-2.5 rounded-md px-1.5 py-1.5 text-left transition-colors hover:bg-surface-muted"
+              >
+                <Bell className="h-4 w-4 text-muted-foreground" />
+                <span className="flex-1 truncate text-[12px] font-medium text-foreground">
+                  {notifications.length === 0
+                    ? "No notifications"
+                    : unreadCount > 0
+                      ? `${unreadCount} unread`
+                      : `${notifications.length} notification${notifications.length === 1 ? "" : "s"}`}
+                </span>
+                {unreadCount > 0 && (
+                  <span className="rounded-full bg-red-500 px-1.5 text-[10px] font-semibold tabular-nums text-white">
+                    {unreadCount >= 100 ? "99+" : unreadCount}
                   </span>
-                  <span className="rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
-                    {notifications.length}
-                  </span>
-                </Link>
-              )}
+                )}
+              </button>
             </div>
 
             {/* Items */}
             <div className="p-1">
-              <MenuLink href="#" icon={<User />} label="Profile" onSelect={() => setOpen(false)} disabled />
-              <MenuLink href="#" icon={<Settings />} label="Settings" onSelect={() => setOpen(false)} disabled />
+              <MenuLink
+                href="/admin/profile"
+                icon={<User />}
+                label="Profile"
+                onSelect={() => setOpen(false)}
+              />
+              <MenuLink href="/admin/settings" icon={<Settings />} label="Settings" onSelect={() => setOpen(false)} />
             </div>
           </motion.div>
         )}

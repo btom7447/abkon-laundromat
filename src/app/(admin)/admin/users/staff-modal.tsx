@@ -27,6 +27,7 @@ import {
   updateUserAction,
   type UserFormState,
 } from "@/server/actions/users";
+import { Avatar } from "@/components/ui/avatar";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Switch } from "@/components/ui/switch";
 import { formatDate, cn } from "@/lib/utils";
@@ -54,30 +55,6 @@ const ROLE_PILL_CLS: Record<Role, string> = {
   ADMIN: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200",
   RECEPTION: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
 };
-
-function avatarColor(seed: string): string {
-  const palette = [
-    "#0EA5E9",
-    "#16A34A",
-    "#0369A1",
-    "#7C3AED",
-    "#DB2777",
-    "#F59E0B",
-    "#DC2626",
-    "#0891B2",
-  ];
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return palette[Math.abs(h) % palette.length]!;
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 export function StaffModal({ mode, user, branches }: Props) {
   const router = useRouter();
@@ -165,12 +142,13 @@ export function StaffModal({ mode, user, branches }: Props) {
             {/* Header */}
             <div className="flex items-start justify-between gap-3 border-b border-default bg-gradient-to-b from-brand-50/40 to-transparent px-6 pt-6 pb-5 dark:from-brand-950/20">
               <div className="flex min-w-0 items-center gap-4">
-                <span
-                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-[20px] font-semibold text-white shadow-[0_1px_3px_0_rgb(15_23_42/0.08)]"
-                  style={{ background: avatarColor(email || displayName) }}
-                >
-                  {name.trim() ? initials(name) : <UserIcon className="h-8 w-8" />}
-                </span>
+                <Avatar
+                  name={name.trim() || displayName}
+                  seed={email || displayName}
+                  src={user?.avatarUrl ?? null}
+                  size={64}
+                  className="rounded-2xl shadow-[0_1px_3px_0_rgb(15_23_42/0.08)]"
+                />
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="truncate text-[19px] font-bold leading-tight tracking-tight text-foreground md:text-[21px]">
@@ -313,43 +291,63 @@ export function StaffModal({ mode, user, branches }: Props) {
                 </Field>
               </div>
 
-              {/* RIGHT — Security & Availability */}
+              {/* RIGHT — Activity & Availability */}
               <div className="flex flex-col gap-5 bg-surface-muted/20 px-6 py-6 lg:py-7">
-                <SectionLabel>{mode === "new" ? "Initial password" : "Reset password"}</SectionLabel>
-
-                <Field
-                  label={mode === "new" ? "Set a starter password" : "Leave blank to keep current"}
-                  icon={<KeyRound />}
-                  hint="Min 10 chars · upper + lower + number"
-                  required={mode === "new"}
-                  error={state.fieldErrors?.password}
-                >
-                  <div className="relative">
-                    <input
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="new-password"
-                      placeholder={mode === "new" ? "Choose a strong password" : "(unchanged)"}
-                      required={mode === "new"}
-                      className="h-11 w-full rounded-md border border-input bg-surface px-3 pr-10 text-[14px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((s) => !s)}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+                {mode === "new" ? (
+                  <>
+                    <SectionLabel>Initial password</SectionLabel>
+                    <Field
+                      label="Set a starter password"
+                      icon={<KeyRound />}
+                      hint="Min 10 chars · upper + lower + number"
+                      required
+                      error={state.fieldErrors?.password}
                     >
-                      {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
-                  {mode === "edit" && password.length > 0 && (
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                      Resetting password will clear any account lock and failed-login attempts.
-                    </p>
-                  )}
-                </Field>
+                      <div className="relative">
+                        <input
+                          name="password"
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          autoComplete="new-password"
+                          placeholder="Choose a strong password"
+                          required
+                          className="h-11 w-full rounded-md border border-input bg-surface px-3 pr-10 text-[14px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((s) => !s)}
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                          className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+                        >
+                          {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Share this with the staff member. They can change it via their profile page after signing in.
+                      </p>
+                    </Field>
+                  </>
+                ) : (
+                  <>
+                    {/* In edit mode admins no longer reset other people's passwords —
+                        staff own their password via /admin/profile (phone-OTP verified). */}
+                    <SectionLabel>Password</SectionLabel>
+                    <div className="flex items-start gap-3 rounded-lg border border-default bg-card p-3.5 shadow-[0_1px_2px_0_rgb(15_23_42/0.04)] [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0">
+                      <KeyRound className="mt-0.5 text-muted-foreground" />
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[13px] font-semibold text-foreground">
+                          Managed by the staff member
+                        </span>
+                        <span className="text-[11.5px] text-muted-foreground">
+                          Passwords are reset by the user on their profile page with a one-time
+                          code to their phone. If this account is locked out, the OTP flow will
+                          clear it.
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Security info (edit only) */}
                 {mode === "edit" && user && (
