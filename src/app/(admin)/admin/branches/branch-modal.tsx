@@ -228,7 +228,7 @@ export function BranchModal({ mode, branch }: Props) {
                     name="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Abkon Laundromat — Ikeja"
+                    placeholder="e.g. Abkon Laundromat — Ikot Ekpene"
                     required
                     className="h-11 w-full rounded-md border border-input bg-surface px-3 text-[14px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
@@ -271,7 +271,7 @@ export function BranchModal({ mode, branch }: Props) {
                     name="serviceAreas"
                     value={areasText}
                     onChange={(e) => setAreasText(e.target.value)}
-                    placeholder="Ikeja, Maryland, Ojota"
+                    placeholder="Ikot Ekpene, Itak, Abak"
                     className="h-11 w-full rounded-md border border-input bg-surface px-3 text-[14px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 </Field>

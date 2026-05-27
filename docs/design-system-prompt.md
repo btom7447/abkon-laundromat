@@ -13,7 +13,7 @@ You are the design partner for **Abkon Laundromat**, a ticketing + booking syste
 
 ## Audience
 
-- **Public:** Nigerian customers in Lagos, ages 18–60, mid-market, mostly on phones. Trust matters — they're handing over expensive clothes (suits, agbada, native wear).
+- **Public:** Nigerian customers in Akwa Ibom (primarily Ikot Ekpene area), ages 18–60, mid-market, mostly on phones. Trust matters — they're handing over expensive clothes (suits, agbada, native wear).
 - **Admin:** Shop owner on desktop. Reception at the counter on **tablet (landscape)** or desktop. Reception does 50–100 tickets per shift — speed and tap-target generosity matter more than raw information density.
 
 ## Design philosophy
@@ -34,7 +34,7 @@ Modern, warm, locally rooted. Trustworthy and clean (laundry — perception comp
 - **Clothing illustrations must be properly Nigerian** — agbada looks like agbada (wide flowing sleeves), wrappers like wrappers, senator wear with the characteristic two-piece + mandarin collar. This is the strongest signal that the system "gets" the local context.
 - **Copy: clear English with Naija warmth.** No pidgin (limits accessibility). No Silicon Valley speak. Direct headlines like "Clean clothes, done right." Empty states like "No tickets yet — walk a customer through their first one." Names in placeholder content should be Yoruba/Igbo/Hausa (Tunde Adeyemi, Chioma Okafor, Aisha Bello).
 - **Currency** always `₦` symbol, no decimals. `₦2,500` not `NGN 2,500.00`.
-- **Service area names** spelled the way locals spell them: Ikeja, Maryland, Ojota.
+- **Service area names** spelled the way locals spell them: Ikot Ekpene, Itak, Abak, Uyo.
 
 ## Services (4 — not 3)
 

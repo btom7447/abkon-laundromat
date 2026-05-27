@@ -8,7 +8,7 @@ import "./globals.css";
 
 const APP_NAME = "Abkon Laundromat";
 const APP_DESCRIPTION =
-  "Lagos laundromat with home pickup and delivery. Wash, iron, wash + iron, and dry cleaning — done right in 2 days. Book in 30 seconds on WhatsApp or walk into our showroom.";
+  "Ikot Ekpene laundromat with home pickup and delivery. Wash, iron, wash + iron, and dry cleaning — done right in 2 days. Book in 30 seconds on WhatsApp or walk into our showroom.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.APP_URL),
@@ -24,18 +24,19 @@ export const metadata: Metadata = {
   generator: "Next.js",
   category: "Local Services",
   keywords: [
-    "laundromat Lagos",
-    "laundry pickup Lagos",
-    "dry cleaning Lagos",
-    "Ikeja laundry",
-    "Maryland laundry",
-    "Ojota laundry",
+    "laundromat Ikot Ekpene",
+    "laundry pickup Akwa Ibom",
+    "dry cleaning Akwa Ibom",
+    "Ikot Ekpene laundry",
+    "Uyo laundry",
+    "Abak laundry",
     "WhatsApp laundry booking",
     "agbada cleaning",
     "senator wear laundry",
-    "duvet washing Lagos",
+    "duvet washing Akwa Ibom",
     "ankara dry cleaning",
     "Abkon Laundromat",
+    "Abkon Services",
   ],
   formatDetection: { email: false, address: false, telephone: false },
   alternates: { canonical: "/" },

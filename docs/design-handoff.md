@@ -202,7 +202,7 @@ Horizontal scroll of illustrated chips for Starching, Stain removal, Whitening, 
 Card-grid of 8–12 popular items with prices (Shirt ₦300, Agbada ₦700, Duvet ₦2,500, Rug ₦800/sqm, etc.) — pulled from the live catalog. CTA: "See full price list" → `/prices` page (also design this — same grid but exhaustive).
 
 **Section 5 — Service areas**
-Visual list or stylized map of neighborhoods covered (Ikeja, Maryland, Ojota, etc.) — pulled from `branch.serviceAreas`. Tagline: "We pick up + deliver in these areas."
+Visual list or stylized map of neighborhoods covered (Ikot Ekpene, Itak, Abak, etc.) — pulled from `branch.serviceAreas`. Tagline: "We pick up + deliver in these areas."
 
 **Section 6 — Testimonials + trust**
 3 customer testimonial cards with names + photos/initials + quotes. Below: a trust strip with numbers ("3+ years · 10k+ items handled · 2-day average turnaround").

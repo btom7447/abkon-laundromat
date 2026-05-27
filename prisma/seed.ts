@@ -30,8 +30,8 @@ async function main() {
     create: {
       name: "Abkon Laundromat — Main",
       code: "AB",
-      address: "Main showroom, Lagos",
-      serviceAreas: ["Ikeja", "Maryland", "Ojota"],
+      address: "193 Aba Road, Ikot Ekpene, Akwa Ibom State",
+      serviceAreas: ["Ikot Ekpene", "Itak", "Abak", "Uyo"],
       businessHoursOpen: "08:00",
       businessHoursClose: "20:00",
       homeDeliveryFee: 1000,

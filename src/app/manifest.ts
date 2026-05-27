@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Abkon Laundromat",
     short_name: "Abkon",
-    description: "Lagos laundromat with WhatsApp booking, home pickup, and 2-day turnaround.",
+    description: "Ikot Ekpene laundromat with WhatsApp booking, home pickup, and 2-day turnaround.",
     start_url: "/",
     display: "standalone",
     orientation: "portrait",
