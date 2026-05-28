@@ -6,16 +6,18 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession, branchScopeFor } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
+import {
+  isValidNigerianMobile,
+  nigerianPhoneSchema,
+  normalizeNigerianPhone,
+  optionalNigerianPhoneSchema,
+} from "@/lib/phone";
 
 const customerSchema = z.object({
   branchId: z.string().min(1),
   name: z.string().min(2).max(120),
-  phone: z
-    .string()
-    .min(7)
-    .max(20)
-    .regex(/^[\d+\-\s()]+$/, "Phone may only contain digits and + - ( ) spaces"),
-  whatsappNumber: z.string().max(20).optional().or(z.literal("")),
+  phone: nigerianPhoneSchema,
+  whatsappNumber: optionalNigerianPhoneSchema,
   defaultAddress: z.string().max(300).optional().or(z.literal("")),
   notes: z.string().max(1000).optional().or(z.literal("")),
   active: z.preprocess((v) => v === "on" || v === true, z.boolean()).default(true),
@@ -36,10 +38,6 @@ function ensureBranchAccess(actorRole: string, actorBranchId: string | null, bra
   }
 }
 
-function normalizePhone(phone: string): string {
-  return phone.replace(/\s+/g, "");
-}
-
 export async function createCustomerAction(
   _prev: CustomerFormState,
   formData: FormData
@@ -51,9 +49,9 @@ export async function createCustomerAction(
 
   ensureBranchAccess(actor.role, actor.branchId, data.branchId);
 
-  const phone = normalizePhone(data.phone);
+  // phone is already canonicalized to +234XXXXXXXXXX by the schema transform
   const clash = await db.customer.findUnique({
-    where: { branchId_phone: { branchId: data.branchId, phone } },
+    where: { branchId_phone: { branchId: data.branchId, phone: data.phone } },
   });
   if (clash) return { error: "A customer with this phone already exists in this branch." };
 
@@ -61,7 +59,7 @@ export async function createCustomerAction(
     data: {
       branchId: data.branchId,
       name: data.name,
-      phone,
+      phone: data.phone,
       whatsappNumber: data.whatsappNumber || null,
       defaultAddress: data.defaultAddress || null,
       notes: data.notes || null,
@@ -110,10 +108,9 @@ export async function updateCustomerAction(
   if (before.branchId !== data.branchId) return { error: "Cannot move customers between branches." };
   ensureBranchAccess(actor.role, actor.branchId, before.branchId);
 
-  const phone = normalizePhone(data.phone);
-  if (phone !== before.phone) {
+  if (data.phone !== before.phone) {
     const clash = await db.customer.findUnique({
-      where: { branchId_phone: { branchId: data.branchId, phone } },
+      where: { branchId_phone: { branchId: data.branchId, phone: data.phone } },
     });
     if (clash && clash.id !== customerId) {
       return { error: "A customer with this phone already exists in this branch." };
@@ -124,7 +121,7 @@ export async function updateCustomerAction(
     where: { id: customerId },
     data: {
       name: data.name,
-      phone,
+      phone: data.phone,
       whatsappNumber: data.whatsappNumber || null,
       defaultAddress: data.defaultAddress || null,
       notes: data.notes || null,
@@ -168,8 +165,27 @@ export async function quickCreateCustomer(input: {
   const actor = await requireSession();
   ensureBranchAccess(actor.role, actor.branchId, input.branchId);
 
-  const phone = normalizePhone(input.phone);
-  if (phone.length < 7) return { ok: false, error: "Phone too short." };
+  const phone = normalizeNigerianPhone(input.phone.trim());
+  if (!isValidNigerianMobile(phone)) {
+    return {
+      ok: false,
+      error:
+        "Enter a valid Nigerian mobile (e.g. 08012345678 or +2348012345678).",
+    };
+  }
+
+  const rawWhatsApp = input.whatsappNumber?.trim();
+  let whatsappNumber: string | null = null;
+  if (rawWhatsApp) {
+    const normalized = normalizeNigerianPhone(rawWhatsApp);
+    if (!isValidNigerianMobile(normalized)) {
+      return {
+        ok: false,
+        error: "WhatsApp number is not a valid Nigerian mobile.",
+      };
+    }
+    whatsappNumber = normalized;
+  }
 
   const existing = await db.customer.findUnique({
     where: { branchId_phone: { branchId: input.branchId, phone } },
@@ -188,7 +204,7 @@ export async function quickCreateCustomer(input: {
       branchId: input.branchId,
       name: input.name.trim(),
       phone,
-      whatsappNumber: input.whatsappNumber?.trim() || null,
+      whatsappNumber,
       defaultAddress: input.defaultAddress?.trim() || null,
       notes: input.notes?.trim() || null,
       active: true,

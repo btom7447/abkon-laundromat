@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { searchCustomers, quickCreateCustomer } from "@/server/actions/customers";
 import { cn } from "@/lib/utils";
+import { isValidNigerianMobile, normalizeNigerianPhone } from "@/lib/phone";
 
 export type PosCustomer = {
   id: string;
@@ -187,8 +188,12 @@ function PickerBar({ branchId, onChange }: { branchId: string; onChange: (c: Pos
   async function commitCreate() {
     setCreateError(null);
     setExistingDup(null);
-    if (!createName.trim() || createPhone.replace(/\s+/g, "").length < 7) {
+    if (!createName.trim()) {
       setCreateError("Name + valid phone required");
+      return;
+    }
+    if (!isValidNigerianMobile(normalizeNigerianPhone(createPhone))) {
+      setCreateError("Enter a valid Nigerian mobile (e.g. 08012345678).");
       return;
     }
     setSubmitting(true);
@@ -223,7 +228,7 @@ function PickerBar({ branchId, onChange }: { branchId: string; onChange: (c: Pos
     setQuery("");
   }
 
-  const phoneValid = createPhone.replace(/\s+/g, "").length >= 7;
+  const phoneValid = isValidNigerianMobile(normalizeNigerianPhone(createPhone));
   const canSubmit = createName.trim().length > 0 && phoneValid && !submitting;
 
   return (
@@ -433,6 +438,7 @@ function PickerBar({ branchId, onChange }: { branchId: string; onChange: (c: Pos
                       <NcField
                         label="Phone number"
                         icon={<Phone />}
+                        placeholder="08012345678 or +2348012345678"
                         value={createPhone}
                         onChange={(v) => {
                           setCreatePhone(v);
@@ -441,7 +447,6 @@ function PickerBar({ branchId, onChange }: { branchId: string; onChange: (c: Pos
                             setCreateError(null);
                           }
                         }}
-                        placeholder="+234 803 …"
                         inputMode="tel"
                         disabled={submitting}
                         isMono

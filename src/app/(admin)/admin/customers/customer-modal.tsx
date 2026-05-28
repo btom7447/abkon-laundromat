@@ -243,7 +243,7 @@ export function CustomerModal({ mode, customer, stats, band, branchId, branchNam
                   error={state.fieldErrors?.phone}
                   required
                   inputMode="tel"
-                  placeholder="+234 803 …"
+                  placeholder="08012345678 or +2348012345678"
                   isMono
                 />
                 <FormField
@@ -253,7 +253,7 @@ export function CustomerModal({ mode, customer, stats, band, branchId, branchNam
                   defaultValue={customer?.whatsappNumber ?? ""}
                   error={state.fieldErrors?.whatsappNumber}
                   inputMode="tel"
-                  placeholder="(optional)"
+                  placeholder="(optional, same format as phone)"
                   isMono
                 />
                 <FormField
