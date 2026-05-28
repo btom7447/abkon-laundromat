@@ -29,7 +29,7 @@ export default function PrivacyPage() {
         <Section title="1. Who we are">
           <p>
             Abkon Services (registered with the Corporate Affairs Commission of Nigeria) operates the
-            Abkon Laundromat brand and the website at <strong>abkon-laundromat.vercel.app</strong>. In this
+            Abkon Laundromat brand and the website at <strong>abkonservices.com.ng</strong>. In this
             policy, &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;Abkon&rdquo; refers to Abkon Services.
           </p>
           <p>
